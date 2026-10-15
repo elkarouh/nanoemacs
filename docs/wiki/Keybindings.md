@@ -245,7 +245,7 @@ In a directory listing: `C-x d`, `C-x C-j`, or any directory opened as a file. T
 | `d` | `dired-flag-file-deletion` | Flag the file at point for deletion by x, and move down. |
 | `x` | `dired-do-flagged-delete` | Delete the files flagged with d, after asking. |
 | `D` | `dired-do-delete` | Delete the marked files, or the file at point, after asking. |
-| `R` | `dired-rg` | Search the files under this dired buffer's directory with rg, as the pattern is typed. |
+| `R` | `dired-rg` | Run rg, with the arguments typed, in the directory of this dired buffer, and list the matching lines. |
 | `M` | `dired-do-rename` | Rename the file at point, or move the marked files into a directory. |
 | `C` | `dired-do-copy` | Copy the file at point, or the marked files into a directory. |
 | `F` | `dired-fd` | Run fd, with the arguments typed, in the directory of this dired buffer, and list the files it finds. |

@@ -57,7 +57,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `dired-next-line` | dired: `n` `C-n` `SPC` `<down>` | Move to the next file, ARG files down. |
 | `dired-previous-line` | dired: `p` `C-p` `<up>` | Move to the previous file, ARG files up. |
 | `dired-revert` | dired: `g` | Read the directory again. |
-| `dired-rg` | dired: `R` | Search the files under this dired buffer's directory with rg, as the pattern is typed. |
+| `dired-rg` | dired: `R` | Run rg, with the arguments typed, in the directory of this dired buffer, and list the matching lines. |
 | `dired-sort-toggle` | dired: `s` | Sort by name, then by time, then by size. |
 | `dired-toggle-details` | dired: `(` | Show or hide permissions, sizes and dates. |
 | `dired-toggle-hidden` | dired: `.` | Show or hide dotfiles. |
@@ -157,6 +157,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `reverse-region` |  | Reverse the order of the region's lines. |
 | `revert-buffer` | `C-x x g` | Read the buffer's file again, throwing away any edits after asking; a listing is read again, a compilation run again. |
 | `rg` | `M-s g` `M-s r` | Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where. |
+| `rg-find-match` |  | Visit the file of the match on the line at point in the rg results, at the matched line. |
 | `right-char` | `<right>` | Move one character to the right: forward, or backward in a line that reads right to left. |
 | `save-buffer` | `C-x C-s` | Save the current buffer, prompting for a name if it has none. |
 | `save-buffers-kill-terminal` | `C-x C-c` | Offer to save modified buffers, then exit. |
@@ -206,4 +207,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-196 commands in all.
+197 commands in all.

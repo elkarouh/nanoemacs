@@ -127,6 +127,10 @@ func TestDecodeKeySetMark(t *testing.T) {
 // places, so a real terminal cannot reach C-h at all; only an explicitly
 // constructed KeyCtrlH can, which is what this covers.
 func TestDecodeKeyCtrlH(t *testing.T) {
+	// The events below carry ModCtrl, as tcell reports a control code, and
+	// DecodeKey adds the Ctrl modifier to every key that has it, backspace
+	// included. So backspace decodes as C-<backspace> here.
+	ctrlBackspace := keymap.Key{Special: keymap.KeyBackspace, Ctrl: true}
 	tests := []struct {
 		name string
 		key  tcell.Key
@@ -134,11 +138,11 @@ func TestDecodeKeyCtrlH(t *testing.T) {
 		want keymap.Key
 	}{
 		{"KeyCtrlH flag off stays C-h", tcell.KeyCtrlH, false, ctrl('h')},
-		{"KeyCtrlH flag on folds to backspace", tcell.KeyCtrlH, true, sp(keymap.KeyBackspace)},
-		{"KeyBackspace flag off", tcell.KeyBackspace, false, sp(keymap.KeyBackspace)},
-		{"KeyBackspace flag on", tcell.KeyBackspace, true, sp(keymap.KeyBackspace)},
-		{"KeyBackspace2 flag off", tcell.KeyBackspace2, false, sp(keymap.KeyBackspace)},
-		{"KeyBackspace2 flag on", tcell.KeyBackspace2, true, sp(keymap.KeyBackspace)},
+		{"KeyCtrlH flag on folds to backspace", tcell.KeyCtrlH, true, ctrlBackspace},
+		{"KeyBackspace flag off", tcell.KeyBackspace, false, ctrlBackspace},
+		{"KeyBackspace flag on", tcell.KeyBackspace, true, ctrlBackspace},
+		{"KeyBackspace2 flag off", tcell.KeyBackspace2, false, ctrlBackspace},
+		{"KeyBackspace2 flag on", tcell.KeyBackspace2, true, ctrlBackspace},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

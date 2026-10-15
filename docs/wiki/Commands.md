@@ -37,7 +37,9 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `describe-bindings` | `C-h b` `<f1> b` | Show every key binding in a help buffer. |
 | `describe-key` | `C-h k` `<f1> k` | Read a key sequence and report the command it runs. |
 | `dired` | `C-x d` | List a directory, to browse it and act on its files. |
+| `dired-bookmark-delete` | dired: `C-x r k` | Delete a bookmark, read by its name with completion. |
 | `dired-bookmark-jump` | dired: `C-x r b` | Go to the directory of a bookmark, read by its name with completion. |
+| `dired-bookmark-list` | dired: `C-x r l` | List the bookmarks, each name with its directory, in a read-only buffer. |
 | `dired-bookmark-set` | dired: `C-x r m` | Bookmark the directory of this dired buffer under a name, which C-x r b goes to. |
 | `dired-copy-filename` | dired: `w` | Copy the names of the marked files, or of the file at point. |
 | `dired-create-directory` | dired: `+` | Create a directory, and any missing parents. |
@@ -209,4 +211,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-199 commands in all.
+201 commands in all.

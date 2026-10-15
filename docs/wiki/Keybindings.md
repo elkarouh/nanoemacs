@@ -248,6 +248,8 @@ In a directory listing: `C-x d`, `C-x C-j`, or any directory opened as a file. T
 | `R` | `dired-rg` | Run rg, with the arguments typed, in the directory of this dired buffer, and list the matching lines. |
 | `C-x r m` | `dired-bookmark-set` | Bookmark the directory of this dired buffer under a name, which C-x r b goes to. |
 | `C-x r b` | `dired-bookmark-jump` | Go to the directory of a bookmark, read by its name with completion. |
+| `C-x r l` | `dired-bookmark-list` | List the bookmarks, each name with its directory, in a read-only buffer. |
+| `C-x r k` | `dired-bookmark-delete` | Delete a bookmark, read by its name with completion. |
 | `M` | `dired-do-rename` | Rename the file at point, or move the marked files into a directory. |
 | `C` | `dired-do-copy` | Copy the file at point, or the marked files into a directory. |
 | `F` | `dired-fd` | Run fd, with the arguments typed, in the directory of this dired buffer, and list the files it finds. |

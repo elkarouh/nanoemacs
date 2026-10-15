@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/Borderliner/nem/command"
 )
@@ -11,6 +12,9 @@ import (
 // Bookmarks are dired's, as emacs has them: C-x r m names the directory of the
 // dired buffer, and C-x r b goes to a named one. A name holds one directory,
 // and setting a name again moves it. They last as long as the editor runs.
+
+// bookmarkListName is the name of the buffer the bookmark list shows in.
+const bookmarkListName = "*Bookmarks*"
 
 // registerBookmarkCommands adds dired-bookmark-set and dired-bookmark-jump.
 func registerBookmarkCommands(e *Editor, reg *command.Registry) error {
@@ -56,6 +60,41 @@ func registerBookmarkCommands(e *Editor, reg *command.Registry) error {
 					return err
 				}
 				e.active.Visit(db)
+				return nil
+			}},
+		{Name: "dired-bookmark-list", Doc: "List the bookmarks, each name with its directory, in a read-only buffer.",
+			Fn: func(command.Env) error {
+				var sb strings.Builder
+				sb.WriteString("Bookmarks\n\n")
+				for _, n := range e.bookmarkNames() {
+					sb.WriteString(n + "  " + e.bookmarks[n] + "\n")
+				}
+				b, ok := e.byName[bookmarkListName]
+				if !ok {
+					b = e.NewBuffer(e.uniqueName(bookmarkListName))
+				}
+				if err := fillReadOnly(b, sb.String()); err != nil {
+					return err
+				}
+				e.active.Visit(b)
+				return nil
+			}},
+		{Name: "dired-bookmark-delete", Doc: "Delete a bookmark, read by its name with completion.",
+			Fn: func(command.Env) error {
+				name, err := e.ReadString(command.ReadOpts{
+					Prompt:       "Delete bookmark: ",
+					History:      "bookmark",
+					Complete:     command.CompleteFrom(e.bookmarkNames()),
+					RequireMatch: true,
+				})
+				if err != nil {
+					return err
+				}
+				if _, ok := e.bookmarks[name]; !ok {
+					return errors.New("no bookmark named " + name)
+				}
+				delete(e.bookmarks, name)
+				e.Echo("Bookmark %s deleted", name)
 				return nil
 			}},
 	}

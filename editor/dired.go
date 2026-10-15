@@ -94,6 +94,8 @@ var diredBindings = []struct{ Spec, Command string }{
 	{"R", "dired-rg"},
 	{"C-x r m", "dired-bookmark-set"},
 	{"C-x r b", "dired-bookmark-jump"},
+	{"C-x r l", "dired-bookmark-list"},
+	{"C-x r k", "dired-bookmark-delete"},
 	{"M", "dired-do-rename"},
 	{"C", "dired-do-copy"},
 	{"F", "dired-fd"},

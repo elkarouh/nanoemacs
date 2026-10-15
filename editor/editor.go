@@ -385,6 +385,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err := registerFdCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering fd commands: %w", err)
 	}
+	if err := registerRgRunCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering rg commands: %w", err)
+	}
 	if err := registerLanguageCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering language commands: %w", err)
 	}

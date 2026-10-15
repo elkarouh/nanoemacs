@@ -186,14 +186,6 @@ func registerFdCommands(e *Editor, reg *command.Registry) error {
 				}
 				return e.fdRun(st.dir, pattern)
 			}},
-		{Name: "dired-rg", Doc: "Search the files under this dired buffer's directory with rg, as the pattern is typed.",
-			Fn: func(command.Env) error {
-				st := e.diredOf(e.active.Buf)
-				if st == nil {
-					return errors.New("not a dired buffer")
-				}
-				return e.rgLive(st.dir)
-			}},
 		{Name: "fd-find-file", Doc: "Visit the file at point in the fd results, or list the directory there in dired.",
 			Fn: func(command.Env) error { return e.fdFindFile() }},
 	}

@@ -622,6 +622,13 @@ func (e *Editor) OpenFile(path string) (*text.Buffer, error) {
 			return b, nil
 		}
 	}
+	// A file whose preview is showing is not in the buffer list, but it is still
+	// the file's buffer: opening it again must not load a second copy.
+	for src, st := range e.previews {
+		if st.shown && src.Path() == abs {
+			return src, nil
+		}
+	}
 	if fi, err := os.Stat(abs); err == nil {
 		// Reading a named pipe or a device as a file blocks, or never ends.
 		if !fi.Mode().IsRegular() {

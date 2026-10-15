@@ -380,6 +380,10 @@ type Env interface {
 	// find-file does.
 	OpenFile(path string) (*text.Buffer, error)
 
+	// VisitOpened shows a buffer just opened from a file in the active window.
+	// A .md file is shown as its Markdown preview.
+	VisitOpened(b *text.Buffer)
+
 	// KillBuffer removes a buffer from the live list. It is an error to kill
 	// the last remaining buffer.
 	KillBuffer(b *text.Buffer) error

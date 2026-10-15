@@ -359,6 +359,10 @@ func (f *Fake) NewBuffer(name string) *text.Buffer {
 	return b
 }
 
+// VisitOpened shows b in the active window, as the editor does; the fake has no
+// Markdown preview to show instead.
+func (f *Fake) VisitOpened(b *text.Buffer) { f.win.Visit(b) }
+
 // OpenFile returns the buffer already visiting path, or creates one from the
 // seeded Files content. Nothing touches the real file system.
 func (f *Fake) OpenFile(path string) (*text.Buffer, error) {

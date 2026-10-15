@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,6 +77,30 @@ func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 		}
 	}
 	return nil
+}
+
+// isMarkdownFile reports whether path is a .md file, which opens as its preview.
+func isMarkdownFile(path string) bool {
+	return strings.EqualFold(filepath.Ext(path), ".md")
+}
+
+// VisitOpened shows b, a buffer just opened from a file, in the active window.
+// A .md file is shown as its Markdown preview instead, and q turns the preview
+// into the editable buffer. Without mdcat the file is shown as it is, since the
+// preview is a convenience and not something to fail an open over.
+func (e *Editor) VisitOpened(b *text.Buffer) {
+	e.active.Visit(b)
+	if !isMarkdownFile(b.Path()) {
+		return
+	}
+	st, err := e.renderPreview(b)
+	if err != nil {
+		return
+	}
+	if !st.shown {
+		e.showPreview(st)
+	}
+	e.active.Visit(st.buf)
 }
 
 // markdownPreview shows the active buffer rendered as Markdown, in its place.

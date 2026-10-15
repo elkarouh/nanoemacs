@@ -146,7 +146,7 @@ func run(targets []target) (err error) {
 		}
 		t.place(b)
 		if i == 0 {
-			e.Active().Visit(b)
+			e.VisitOpened(b)
 		}
 	}
 

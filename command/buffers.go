@@ -79,7 +79,7 @@ func findFile(e Env) error {
 	if err != nil {
 		return err
 	}
-	e.Win().Visit(buf)
+	e.VisitOpened(buf)
 	return nil
 }
 

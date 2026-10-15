@@ -786,7 +786,7 @@ func (e *Editor) visitFile(path string) error {
 	if err != nil {
 		return err
 	}
-	e.active.Visit(b)
+	e.VisitOpened(b)
 	return nil
 }
 

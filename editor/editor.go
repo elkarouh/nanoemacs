@@ -147,6 +147,9 @@ type Editor struct {
 	// See rgrun.go.
 	rgs    map[*text.Buffer]*rgState
 	rgKeys *keymap.Map
+	// bookmarks names the directories dired bookmarks, by name. See
+	// bookmarks.go.
+	bookmarks map[string]string
 	// nextErrorBuf is the list of locations M-g n steps through: the last
 	// search's results, or the last compilation. See locations.go.
 	nextErrorBuf *text.Buffer
@@ -342,6 +345,7 @@ func New(scr tcell.Screen) (*Editor, error) {
 		fds:        map[*text.Buffer]*fdState{},
 		fdKeys:     fk,
 		rgs:        map[*text.Buffer]*rgState{},
+		bookmarks:  map[string]string{},
 		rgKeys:     rk,
 
 		raw:             map[*text.Buffer]bool{},
@@ -397,6 +401,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	}
 	if err := registerRgRunCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering rg commands: %w", err)
+	}
+	if err := registerBookmarkCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering bookmark commands: %w", err)
 	}
 	if err := registerLanguageCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering language commands: %w", err)

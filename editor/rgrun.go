@@ -9,10 +9,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/Borderliner/nem/ansistyle"
 	"github.com/Borderliner/nem/command"
 	"github.com/Borderliner/nem/keymap"
 	"github.com/Borderliner/nem/text"
+	"github.com/Borderliner/nem/ui"
 )
 
 // rgRunTimeout is how long rg may run before it is stopped.
@@ -26,9 +29,11 @@ const rgRunName = "*rg*"
 const rgHeaderLines = 2
 
 // rgState is what makes a buffer rg's results: the directory rg ran in, which
-// its matches' file names are relative to.
+// its matches' file names are relative to, and the colours over the text, as
+// rg prints them to a terminal.
 type rgState struct {
-	dir string
+	dir   string
+	lines map[int][]ui.SymbolSpan
 }
 
 // rgBindings is the results' keymap. The buffer is read-only, so printable
@@ -99,7 +104,9 @@ func (e *Editor) rgRun(dir, args string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), rgRunTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", bin+" --color never --line-number --with-filename "+args)
+	// rg colours its output as it does at a terminal: file names, line numbers,
+	// and the text each match found. The colours are read below, not shown raw.
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", bin+" --color always --line-number --with-filename "+args)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	var ee *exec.ExitError
@@ -114,7 +121,8 @@ func (e *Editor) rgRun(dir, args string) error {
 		}
 		return fmt.Errorf("rg: %w", err)
 	}
-	matches := strings.TrimRight(string(out), "\n")
+	plain, spans := ansistyle.Parse(strings.TrimRight(string(out), "\n"))
+	matches := plain
 	if matches == "" {
 		e.Echo("No matches for rg %s in %s", args, dir)
 		return nil
@@ -124,11 +132,18 @@ func (e *Editor) rgRun(dir, args string) error {
 	if !ok {
 		b = e.NewBuffer(e.uniqueName(rgRunName))
 	}
-	body := fmt.Sprintf("rg %s in %s\n\n%s\n", args, dir, matches)
+	head := fmt.Sprintf("rg %s in %s\n\n", args, dir)
+	// The colours are over the matches, so they move down past the heading.
+	shift := utf8.RuneCountInString(head)
+	for i := range spans {
+		spans[i].Start += shift
+		spans[i].End += shift
+	}
+	body := head + matches + "\n"
 	if err := fillReadOnly(b, body); err != nil {
 		return err
 	}
-	e.rgs[b] = &rgState{dir: dir}
+	e.rgs[b] = &rgState{dir: dir, lines: previewLines(body, spans)}
 	e.active.Visit(b)
 	e.Echo("%d matching lines for rg %s", strings.Count(matches, "\n")+1, args)
 	return nil

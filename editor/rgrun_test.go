@@ -24,6 +24,12 @@ func TestRgRunResultsOpenAtTheMatch(t *testing.T) {
 	if e.rgOf(res) == nil {
 		t.Fatal("the results buffer holds no rg results")
 	}
+	// The match's text is coloured, as rg colours it at a terminal, and the
+	// colour sits on the matched line of the results, after the heading and
+	// the blank line.
+	if got := e.rgOf(res).lines[rgHeaderLines]; len(got) == 0 {
+		t.Fatal("the matched line has no colour over it")
+	}
 	// The match is on the third line of the results, after the heading and
 	// the blank line.
 	e.Active().Pt = text.Pos{Line: rgHeaderLines}

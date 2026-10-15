@@ -40,17 +40,17 @@ const liveMatches = 2000
 // registerFinderCommands adds rg, fzf and fzf-lines.
 func registerFinderCommands(e *Editor, reg *command.Registry) error {
 	cmds := []command.Command{
-		{Name: "rg", Doc: "Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where.",
+		{Name: "rg", Doc: "Search the files of the buffer's project as the pattern is typed, ripgrep's options and all; C-u asks where.",
 			Fn: func(command.Env) error {
-				dir, err := e.finderDir(false)
+				dir, err := e.finderDir(true)
 				if err != nil {
 					return err
 				}
 				return e.rgLive(dir)
 			}},
-		{Name: "fzf", Doc: "Open a file under the buffer's directory, found by a few letters of its path; C-u asks where.",
+		{Name: "fzf", Doc: "Open a file of the buffer's project, found by a few letters of its path; C-u asks where.",
 			Fn: func(command.Env) error {
-				dir, err := e.finderDir(false)
+				dir, err := e.finderDir(true)
 				if err != nil {
 					return err
 				}

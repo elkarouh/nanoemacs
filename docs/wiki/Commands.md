@@ -79,7 +79,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `forward-paragraph` | `M-}` | Move to the end of the paragraph, ARG paragraphs forward. |
 | `forward-sexp` | `C-M-f` | Move over the next balanced expression, ARG times. |
 | `forward-word` | `M-f` | Move point to the end of the next word. |
-| `fzf` | `M-s f` | Open a file under the buffer's directory, found by a few letters of its path; C-u asks where. |
+| `fzf` | `M-s f` | Open a file of the buffer's project, found by a few letters of its path; C-u asks where. |
 | `fzf-lines` | `M-s l` | Go to a line of the buffer, found by a few letters of it. |
 | `goto-line` | `M-g M-g` | Move point to the start of a numbered line. |
 | `grep-display-match` | grep: `o` | Show the match at point in the other window, staying here. |
@@ -156,7 +156,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `replace-string` |  | Replace a string everywhere after point, or in the region, without asking. |
 | `reverse-region` |  | Reverse the order of the region's lines. |
 | `revert-buffer` | `C-x x g` | Read the buffer's file again, throwing away any edits after asking; a listing is read again, a compilation run again. |
-| `rg` | `M-s g` `M-s r` | Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where. |
+| `rg` | `M-s g` `M-s r` | Search the files of the buffer's project as the pattern is typed, ripgrep's options and all; C-u asks where. |
 | `rg-find-match` |  | Visit the file of the match on the line at point in the rg results, at the matched line. |
 | `right-char` | `<right>` | Move one character to the right: forward, or backward in a line that reads right to left. |
 | `save-buffer` | `C-x C-s` | Save the current buffer, prompting for a name if it has none. |

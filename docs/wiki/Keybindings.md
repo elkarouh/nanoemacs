@@ -123,8 +123,8 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-r` | `isearch-backward` | Search incrementally backward as you type. |
 | `M-%` | `query-replace` | Replace occurrences of a string, asking about each one. |
 | `M-s o` | `occur` | List the lines of this buffer that match a regexp, each leading to its line. |
-| `M-s r` `M-s g` | `rg` | Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where. |
-| `M-s f` | `fzf` | Open a file under the buffer's directory, found by a few letters of its path; C-u asks where. |
+| `M-s r` `M-s g` | `rg` | Search the files of the buffer's project as the pattern is typed, ripgrep's options and all; C-u asks where. |
+| `M-s f` | `fzf` | Open a file of the buffer's project, found by a few letters of its path; C-u asks where. |
 | `M-s l` | `fzf-lines` | Go to a line of the buffer, found by a few letters of it. |
 | `M-s p` | `project-find-regexp` | Search the current project's files for a regexp, listing the matching lines. |
 

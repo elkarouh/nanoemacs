@@ -29,6 +29,15 @@ func listed(t *testing.T, e *Editor, dir string) (*text.Buffer, *diredState) {
 	return b, e.dired[b]
 }
 
+// tabRow is the screen row a window's top sits on. With two or more buffers
+// the tab strip takes row 0, one tab per buffer, so the window starts below it.
+func tabRow(e *Editor) int {
+	if len(e.tabs) > 1 {
+		return 1
+	}
+	return 0
+}
+
 // showsHeader reports whether a screen row is st's header, drawn from the
 // first column. The header leads with the directory's whole path, and a
 // temporary directory can be deeper than the screen is wide - on macOS and
@@ -502,14 +511,15 @@ func TestDiredRenders(t *testing.T) {
 		}
 		return sb.String()
 	}
-	if got := row(0); !showsHeader(got, st) {
-		t.Errorf("row 0 = %q, want the header with no line number", got)
+	top := tabRow(e)
+	if got := row(top); !showsHeader(got, st) {
+		t.Errorf("row %d = %q, want the header with no line number", top, got)
 	}
-	if got := row(dired.FirstEntry); !strings.Contains(got, "../") {
-		t.Errorf("row %d = %q, want the parent entry", dired.FirstEntry, got)
+	if got := row(top + dired.FirstEntry); !strings.Contains(got, "../") {
+		t.Errorf("row %d = %q, want the parent entry", top+dired.FirstEntry, got)
 	}
-	if got := row(dired.FirstEntry + 1); !strings.Contains(got, "sub/") {
-		t.Errorf("row %d = %q, want the sub/ entry", dired.FirstEntry+1, got)
+	if got := row(top + dired.FirstEntry + 1); !strings.Contains(got, "sub/") {
+		t.Errorf("row %d = %q, want the sub/ entry", top+dired.FirstEntry+1, got)
 	}
 	if !strings.Contains(row(22), "dired") {
 		t.Errorf("modeline = %q, want it to say dired", row(22))
@@ -616,8 +626,8 @@ func TestDiredOpensWithTheHeaderInView(t *testing.T) {
 	}
 	e.active.Visit(b)
 	e.Redraw()
-	if got := screenRow(t, scr, 0); !showsHeader(got, e.diredOf(b)) {
-		t.Fatalf("row 0 = %q, want the header", got)
+	if got := screenRow(t, scr, tabRow(e)); !showsHeader(got, e.diredOf(b)) {
+		t.Fatalf("row %d = %q, want the header", tabRow(e), got)
 	}
 
 	press(t, e, "M->")
@@ -628,8 +638,8 @@ func TestDiredOpensWithTheHeaderInView(t *testing.T) {
 	if sub == nil || sub.dir != filepath.Join(dir, "sub") {
 		t.Fatalf("RET on sub/ left a window on %q, want sub's listing", e.BufferName(e.active.Buf))
 	}
-	if got := screenRow(t, scr, 0); !showsHeader(got, sub) {
-		t.Errorf("after walking into sub, row 0 = %q, want its header", got)
+	if got := screenRow(t, scr, tabRow(e)); !showsHeader(got, sub) {
+		t.Errorf("after walking into sub, row %d = %q, want its header", tabRow(e), got)
 	}
 }
 

@@ -169,6 +169,8 @@ trees of hundreds of thousands of files.
 | `M-s r` | search every file of the project as you type, with ripgrep's options: `-t go -w count`, `-i -g '!vendor/**' TODO`, `-F`, `-u` |
 | `M-s f` | open any file under the project by a few letters of its path |
 | `M-s l` | go to a line of the buffer by a few letters of it, the cursor following the list |
+| `R` in dired | run ripgrep with the arguments you type, in that directory; `RET` opens a match |
+| `F` in dired | run fd with the arguments you type, in that directory; `RET` opens a file |
 
 In `M-s r`, `RET` goes to the match highlighted and `M-RET` lists them all, as
 `C-x p g` does - which takes ripgrep's options too. Every list under a prompt

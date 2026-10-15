@@ -66,6 +66,17 @@ Very large trees work too. The list stops at 200,000 files, and each keystroke r
 - `RET` leaves the cursor on the line, at the text that matched. The mark stays where you started.
 - `C-g` puts the cursor back where it was.
 
+## dired: `R` and `F`, ripgrep and fd from a directory
+
+In a dired buffer, `R` runs ripgrep and `F` runs fd, in that buffer's directory, with the arguments you type. Both prompt for the same kind of command line as the shell would take, so you can add options as you go.
+
+- `R` (`dired-rg`) lists the matching lines, each with its file and line number. The matches are coloured as ripgrep colours them at a terminal, with the match picked out.
+- `F` (`dired-fd`) lists the files fd finds, one path per line.
+- `RET` on a line of either list opens it. In an `R` list, `RET` opens the file at the matched line.
+- `n` and `p` step through the list, and `q` closes it.
+
+The command line runs as typed, so `R` takes the same options as `rg` on the command line, such as `-t go -w count`. The results go in a read-only `*rg*` or `*fd*` buffer, and running either again replaces the last list.
+
 ## Narrowing a list: fzf's syntax
 
 Every list under a prompt narrows the same way: `M-x`, `C-x C-f`, `C-x b`, `M-s f`, `M-s l` and the rest. Typed letters match fuzzily: they must appear in the candidate in order, with gaps allowed, so `fwc` finds `forward-char`. Matches that start words, and letters that run together, rank higher.

@@ -1,0 +1,695 @@
+package editor
+
+import (
+	"sort"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/keymap"
+	"github.com/Borderliner/nem/text"
+	"github.com/Borderliner/nem/view"
+	"github.com/gdamore/tcell/v2"
+)
+
+// The minibuffer is a real text.Buffer shown in a real view.Window, exactly as
+// it is in emacs, and it is deliberately NOT in the split tree — it is a single
+// row pinned to the bottom of the screen, which is why the tree is laid out in
+// h-1 rows.
+//
+// The payoff is that a prompt needs no editing implementation of its own. While
+// a prompt is open, Editor.Win reports the prompt's window, so move-end-of-line,
+// kill-line, backward-word and yank all act on the prompt because they act on
+// whatever Win reports. The prompt's keymap binds only accept, abort, complete
+// and search-advance; everything else falls through to the global map.
+
+// Prompt-control names. They are not registry commands: accepting or abandoning
+// a prompt is a property of the prompt, not an editor-wide operation, and
+// registering them would put four commands in M-x that do nothing outside one.
+const (
+	miniAccept     = "minibuffer-accept"
+	miniAbort      = "minibuffer-abort"
+	miniComplete   = "minibuffer-complete"
+	miniSearchFwd  = "minibuffer-isearch-forward"
+	miniSearchBack = "minibuffer-isearch-backward"
+	miniNext       = "minibuffer-next-candidate"
+	miniPrev       = "minibuffer-previous-candidate"
+	miniAcceptText = "minibuffer-accept-literal"
+	miniHistPrev   = "minibuffer-previous-history"
+	miniHistNext   = "minibuffer-next-history"
+)
+
+// miniState is one active prompt.
+type miniState struct {
+	prompt string
+	buf    *text.Buffer
+	win    *view.Window
+	opts   command.ReadOpts
+	keys   *keymap.Map
+
+	// last is the contents as of the most recent OnChange, so a change can be
+	// detected however it was made — typed, backspaced, killed or yanked.
+	last string
+
+	// comp is the candidate list, or nil when the prompt has no completion.
+	// Its absence is what keeps an incremental search from growing a panel:
+	// C-s passes no Complete function, so there is nothing to show.
+	comp *completion
+
+	// history is what has been entered at prompts of this kind, most recent
+	// first. histAt is the entry the prompt shows, -1 for what was being
+	// typed; typed is that text, kept while the history is walked.
+	history []string
+	histAt  int
+	typed   string
+
+	// previewed is the candidate Preview was last told of; nil before the
+	// first.
+	previewed *string
+
+	done  bool
+	abort bool
+}
+
+// miniKeymap binds only what belongs to a prompt. Everything it omits falls
+// through to the global map, which is the whole point.
+func miniKeymap() *keymap.Map {
+	m := keymap.New()
+	for _, b := range []struct{ spec, cmd string }{
+		{"RET", miniAccept},
+		{"C-g", miniAbort},
+		{"TAB", miniComplete},
+		{"C-s", miniSearchFwd},
+		{"C-r", miniSearchBack},
+		{"C-n", miniNext},
+		{"<down>", miniNext},
+		{"C-p", miniPrev},
+		{"<up>", miniPrev},
+		{"M-RET", miniAcceptText},
+		{"M-p", miniHistPrev},
+		{"M-n", miniHistNext},
+	} {
+		if err := bindSpec(m, b.spec, b.cmd); err != nil {
+			panic("editor: bad minibuffer binding: " + err.Error()) // a build-time constant is wrong
+		}
+	}
+	return m
+}
+
+// newMiniState builds a prompt's state.
+//
+// It is the single place that decides whether a prompt has a candidate list, so
+// that rule cannot be stated twice and drift: the absence of a Complete function
+// is what keeps an incremental search from growing a panel, and a second copy of
+// the test would be testing the copy rather than this.
+func newMiniState(opts command.ReadOpts, buf *text.Buffer, win *view.Window) *miniState {
+	ms := &miniState{
+		prompt: opts.Prompt,
+		buf:    buf,
+		win:    win,
+		opts:   opts,
+		keys:   miniKeymap(),
+		last:   buf.String(),
+		histAt: -1,
+	}
+	switch {
+	case opts.Search != nil:
+		ms.comp = newLiveCompletion()
+	case opts.Complete != nil:
+		ms.comp = newCompletion(opts.Complete, ms.contents())
+		ms.comp.keepOrder = opts.KeepOrder
+		if opts.KeepOrder {
+			ms.comp.refresh(ms.contents())
+		}
+	}
+	if ms.comp != nil {
+		ms.comp.icon = opts.Icon
+		ms.comp.annotate = opts.Annotate
+	}
+	return ms
+}
+
+// line renders the prompt and its contents for the echo row.
+func (ms *miniState) line() string { return ms.promptText() + ms.buf.String() }
+
+// promptText is the prompt as it stands: a search's says how the search is
+// going - failing, wrapped, backward - as emacs's does, since a message in
+// the echo area would be hidden under it.
+func (ms *miniState) promptText() string {
+	if ms.opts.Session != nil {
+		return ms.opts.Session.Prompt()
+	}
+	return ms.prompt
+}
+
+// cursorCol is the display column of point within the echo row, counted from
+// the screen's left edge, so the prompt's own width is included.
+func (ms *miniState) cursorCol() text.ColIdx {
+	pt := ms.buf.ClampPos(ms.win.Pt)
+	return text.ColIdx(len([]rune(ms.promptText()))) + ms.buf.Line(pt.Line).DisplayCol(pt.Col)
+}
+
+// contents returns what the user has typed.
+func (ms *miniState) contents() string { return ms.buf.String() }
+
+// ReadString prompts in the minibuffer and returns what was typed, or ErrQuit
+// if the user pressed C-g.
+//
+// It enters a nested event loop rather than returning a continuation, which is
+// what lets a prompting command read as straight-line code: find-file is
+// ReadString then OpenFile then Visit, not a three-state machine.
+//
+// # Incremental search
+//
+// A repeated C-s inside the prompt must advance to the next match, which the
+// prompt's keymap owns. The session it advances arrives in ReadOpts.Session,
+// passed by the search command itself, so the editor never has to guess which
+// prompts are searches. Session and OnChange are independent hooks and both
+// fire; both run against the text window, not the prompt's.
+func (e *Editor) ReadString(opts command.ReadOpts) (string, error) {
+	if e.scr == nil {
+		return "", command.ErrQuit // nothing to prompt on
+	}
+	if e.miniDepth >= maxMiniDepth {
+		return "", ErrTooDeep
+	}
+
+	buf := text.NewBuffer()
+	if opts.Initial != "" {
+		if err := buf.Insert(text.Pos{}, []rune(opts.Initial)); err != nil {
+			return "", err
+		}
+	}
+	buf.BreakUndo()
+	win := view.NewWindow(buf)
+	win.Pt = buf.End()
+
+	ms := newMiniState(opts, buf, win)
+	if opts.History != "" {
+		ms.history = e.mem.HistoryOf(opts.History)
+		if ms.comp != nil && opts.HistoryFirst && len(ms.history) > 0 {
+			ms.comp.history = ms.history
+			ms.comp.refresh(ms.contents())
+		}
+	}
+	// The echo area is deliberately NOT saved and restored. A prompt's own text
+	// lives in ms.line(), not in e.echo, so there is nothing of the prompt's to
+	// clean up — and a message the prompt produced, such as a failing
+	// incremental search, must survive the prompt closing.
+	// The prefix argument belongs to the command that opened the prompt, not
+	// to the first key typed into it: kept, C-u M-! typed its first letter
+	// four times. It is set aside while the prompt is open and given back
+	// after, for a command that reads it once it has its answer, as M-x does
+	// to pass it on.
+	savedMini, savedPending, savedArg := e.mini, e.pending, e.arg
+	e.mini, e.pending = ms, nil
+	e.arg.reset()
+	e.miniDepth++
+	defer func() {
+		e.mini, e.pending, e.arg = savedMini, savedPending, savedArg
+		e.miniDepth--
+	}()
+
+	e.readLoop(ms)
+
+	if ms.abort || e.quit {
+		return "", command.ErrQuit
+	}
+	answer := ms.contents()
+	if opts.History != "" && answer != "" {
+		e.mem.AddHistory(opts.History, answer)
+		e.saveMemory()
+	}
+	return answer, nil
+}
+
+// readLoop is the nested event loop a prompt runs in.
+func (e *Editor) readLoop(ms *miniState) {
+	if ms.comp != nil && ms.comp.live {
+		e.searchLive(ms, ms.contents())
+		defer ms.comp.stop.Store(true) // a search still running is for nothing now
+	}
+	ms.preview(e)
+	e.Redraw()
+	for !ms.done && !e.quit {
+		ev := e.nextEvent()
+		if ev == nil {
+			ms.abort = true
+			return
+		}
+		e.handleEvent(ev)
+		if !ms.done {
+			ms.preview(e)
+		}
+		if !e.paste.active {
+			e.Redraw()
+		}
+	}
+}
+
+// preview tells the prompt's Preview of the highlighted candidate, when it is
+// another than it was last told of.
+func (ms *miniState) preview(e *Editor) {
+	if ms.opts.Preview == nil || ms.comp == nil {
+		return
+	}
+	cand, _ := ms.comp.selected()
+	if ms.previewed != nil && *ms.previewed == cand {
+		return
+	}
+	ms.previewed = &cand
+	e.withTextWindow(func() { ms.opts.Preview(cand) })
+}
+
+// liveFound is a live search's results, posted to the event loop by the
+// goroutine that ran it.
+type liveFound struct {
+	ms    *miniState
+	gen   int
+	found []command.Found
+}
+
+// searchLive starts a search for input in the background, stopping the one
+// before it. Its results arrive as a liveFound event.
+func (e *Editor) searchLive(ms *miniState, input string) {
+	c := ms.comp
+	if c.stop != nil {
+		c.stop.Store(true)
+	}
+	c.gen++
+	stop := new(atomic.Bool)
+	c.stop, c.pending = stop, true
+	gen, search, scr := c.gen, ms.opts.Search, e.scr
+	go func() {
+		found := search(input, stop)
+		// Posting fails only while the queue is full; the loop empties it
+		// soon enough, unless a newer search has made this one stale.
+		for !stop.Load() {
+			if scr.PostEvent(tcell.NewEventInterrupt(liveFound{ms, gen, found})) == nil {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+}
+
+// liveArrived shows a live search's results, if they are still wanted.
+func (e *Editor) liveArrived(d liveFound) {
+	if e.mini != d.ms || d.gen != d.ms.comp.gen {
+		return
+	}
+	d.ms.comp.setFound(d.found)
+}
+
+// control handles a prompt-control key.
+func (ms *miniState) control(e *Editor, name string) {
+	switch name {
+	case miniAccept:
+		ms.accept(e)
+	case miniAcceptText:
+		ms.acceptLiteral(e)
+	case miniNext:
+		// Without a candidate list, the arrows walk the history, as in
+		// emacs: there is nothing else for them to move through.
+		if ms.comp != nil {
+			ms.comp.move(1)
+		} else {
+			ms.historyStep(e, -1)
+		}
+	case miniPrev:
+		if ms.comp != nil {
+			ms.comp.move(-1)
+		} else {
+			ms.historyStep(e, 1)
+		}
+	case miniHistPrev:
+		ms.historyStep(e, 1)
+	case miniHistNext:
+		ms.historyStep(e, -1)
+	case miniAbort:
+		ms.done, ms.abort = true, true
+		if ms.opts.Session != nil {
+			e.withTextWindow(func() { ms.opts.Session.Abandon() })
+		}
+	case miniComplete:
+		ms.complete(e)
+	case miniSearchFwd, miniSearchBack:
+		if ms.opts.Session != nil {
+			backward := name == miniSearchBack
+			e.withTextWindow(func() { ms.opts.Session.Step(backward) })
+		}
+	}
+}
+
+// moveList runs a command that, in a prompt with a candidate list, moves
+// through the list instead, reporting whether name was one. As Vertico has
+// it, the prompt's one line has no screenful to scroll and no buffer to go
+// to either end of, so C-v and M-v page through the candidates and M-< and
+// M-> go to the first and the last. The commands are taken over rather than
+// the keys, so <pgdn> and <pgup>, and whatever keys they are bound to in an
+// init.lua, move the list too.
+func (ms *miniState) moveList(e *Editor, name string) bool {
+	c := ms.comp
+	if c == nil {
+		return false
+	}
+	n, _ := e.arg.value()
+	switch name {
+	case "scroll-up-command":
+		c.page(n)
+	case "scroll-down-command":
+		c.page(-n)
+	case "beginning-of-buffer":
+		c.goTo(0)
+	case "end-of-buffer":
+		c.goTo(c.count() - 1)
+	default:
+		return false
+	}
+	e.arg.reset()
+	return true
+}
+
+// accept resolves what RET means for this prompt.
+//
+// The rule is Vertico's: the highlighted candidate is the answer. The popup
+// shows what RET will take, and a prompt that returned the fragment typed
+// instead - which is what emacs's completing-read does without a required
+// match - opened a new file called "rea" with readme.txt highlighted directly
+// under it. A name typed out in full cannot lose to a better-scoring neighbour,
+// because refresh ranks an exact match first.
+//
+// The cost of the rule is that a new name which fuzzy-matches an existing one
+// cannot be given with RET. That is what M-RET is for.
+//
+// RequireMatch decides only what happens with nothing highlighted: return the
+// text as typed, or refuse it.
+func (ms *miniState) accept(e *Editor) {
+	c := ms.comp
+	if c == nil {
+		ms.done = true
+		return
+	}
+	if sel, ok := c.selected(); ok {
+		ms.take(e, sel)
+		return
+	}
+	if ms.opts.RequireMatch {
+		// Nothing matches and nothing may be invented. Refusing keeps the
+		// prompt open with the text intact, so the user can edit rather than
+		// retype.
+		e.Echo("No match")
+		return
+	}
+	ms.done = true
+}
+
+// take answers the prompt with cand, or walks into it when the prompt says it
+// is somewhere to descend into, such as a directory at find-file.
+//
+// Descending replaces the input and leaves the prompt open, and replace
+// refreshes the list, so the next RET chooses among what is inside. A candidate
+// already equal to the input is taken even so: descending would change nothing,
+// and RET would become a key that does nothing at all.
+func (ms *miniState) take(e *Editor, cand string) {
+	if cand == ms.contents() {
+		ms.done = true
+		return
+	}
+	if ms.opts.Descend != nil && ms.opts.Descend(cand) {
+		ms.replace(e, cand)
+		return
+	}
+	// The answer goes in the prompt for ReadString to return, but without
+	// the hooks an edit fires: a search as you type would search again for
+	// the answer itself, and OnChange would hear of text nobody typed.
+	ms.quietly(cand)
+	ms.done = true
+}
+
+// quietly puts s in the prompt without telling anything of the change.
+func (ms *miniState) quietly(s string) {
+	if err := ms.buf.Delete(text.Pos{}, ms.buf.End()); err != nil {
+		return
+	}
+	_ = ms.buf.Insert(text.Pos{}, []rune(s))
+	ms.win.Pt = ms.buf.End()
+	ms.last = s
+}
+
+// acceptLiteral ends the prompt with exactly what was typed, ignoring the
+// highlight and any Descend hook - it is the way to give a new name that
+// fuzzy-matches an existing one, and the way to name a directory itself.
+//
+// It is refused where RequireMatch holds: the flag exists to stop a command name
+// being invented, and a second key that bypassed it would make it decorative.
+func (ms *miniState) acceptLiteral(e *Editor) {
+	if ms.opts.RequireMatch {
+		e.Echo("This prompt requires an existing match")
+		return
+	}
+	ms.done = true
+}
+
+// complete is TAB: take the selected candidate, or extend as far as every
+// candidate agrees.
+//
+// Taking the selection is what makes TAB useful under fuzzy matching, where the
+// candidates rarely share a prefix with what was typed and a common-prefix
+// extension would usually do nothing at all.
+func (ms *miniState) complete(e *Editor) {
+	c := ms.comp
+	if c == nil {
+		return
+	}
+	if c.count() == 0 {
+		e.Echo("No match")
+		return
+	}
+	if sel, ok := c.selected(); ok {
+		ms.replace(e, sel)
+		return
+	}
+	cands := make([]string, 0, c.count())
+	for _, r := range c.ranked {
+		cands = append(cands, r.Candidate)
+	}
+	if pre := commonPrefix(cands); len(pre) > len(ms.contents()) {
+		ms.replace(e, pre)
+		return
+	}
+	sorted := append([]string(nil), cands...)
+	sort.Strings(sorted)
+	e.Echo("%s", strings.Join(sorted, " "))
+}
+
+// replace sets the prompt's contents, leaving point at the end.
+func (ms *miniState) replace(e *Editor, s string) {
+	if err := ms.buf.Delete(text.Pos{}, ms.buf.End()); err != nil {
+		return
+	}
+	if s != "" {
+		if err := ms.buf.Insert(text.Pos{}, []rune(s)); err != nil {
+			return
+		}
+	}
+	ms.win.Pt = ms.buf.End()
+	e.afterMiniEdit()
+}
+
+// historyStep shows the history entry d steps older (d > 0) or newer, coming
+// back to what was being typed past the newest.
+func (ms *miniState) historyStep(e *Editor, d int) {
+	next := ms.histAt + d
+	switch {
+	case next >= len(ms.history):
+		e.Echo("Beginning of history; no preceding item")
+		return
+	case next < -1:
+		e.Echo("End of history")
+		return
+	}
+	if ms.histAt == -1 {
+		ms.typed = ms.contents()
+	}
+	ms.histAt = next
+	if next == -1 {
+		ms.replace(e, ms.typed)
+	} else {
+		ms.replace(e, ms.history[next])
+	}
+}
+
+// commonPrefix returns the longest prefix shared by every candidate.
+func commonPrefix(ss []string) string {
+	if len(ss) == 0 {
+		return ""
+	}
+	pre := ss[0]
+	for _, s := range ss[1:] {
+		for !strings.HasPrefix(s, pre) {
+			pre = pre[:len(pre)-1]
+			if pre == "" {
+				return ""
+			}
+		}
+	}
+	return pre
+}
+
+// afterMiniEdit fires OnChange when the prompt's contents have changed.
+//
+// It compares contents rather than watching for insertions, so every route to a
+// change is covered: typing, <backspace>, C-k, and yank alike. Shortening is
+// what makes an incremental search walk point back toward its origin, and it is
+// exactly what a grow-only notification cannot express.
+func (e *Editor) afterMiniEdit() {
+	ms := e.mini
+	if ms == nil {
+		return
+	}
+	cur := ms.contents()
+	if ms.opts.Rewrite != nil {
+		if r := ms.opts.Rewrite(cur); r != cur {
+			_ = ms.buf.Delete(text.Pos{}, ms.buf.End())
+			_ = ms.buf.Insert(text.Pos{}, []rune(r))
+			ms.win.Pt = ms.buf.End()
+			cur = r
+		}
+	}
+	if cur == ms.last {
+		return
+	}
+	ms.last = cur
+
+	// The candidate list is recomputed from the new contents before the hooks
+	// run, so anything they trigger sees a list that matches what is on screen.
+	// A live list is searched for in the background instead.
+	switch {
+	case ms.comp != nil && ms.comp.live:
+		e.searchLive(ms, cur)
+	case ms.comp != nil:
+		ms.comp.refresh(cur)
+	}
+
+	// Both hooks fire. They are independent: a caller may drive a search and
+	// also want to observe the pattern. Previously the session shadowed
+	// OnChange, so a search prompt silently never called it.
+	if ms.opts.Session != nil {
+		e.withTextWindow(func() { ms.opts.Session.Update(cur) })
+	}
+	if ms.opts.OnChange != nil {
+		e.withTextWindow(func() { ms.opts.OnChange(cur) })
+	}
+}
+
+// withTextWindow runs fn with Win reporting the text window rather than the
+// prompt's.
+//
+// Search-as-you-type moves point in the buffer being searched, not in the
+// prompt, so Isearch.Update and Advance must see the underlying window — while
+// C-a and C-k, dispatched ordinarily, must see the prompt. Both needs are real
+// and this is the seam between them.
+func (e *Editor) withTextWindow(fn func()) {
+	saved := e.miniTransparent
+	e.miniTransparent = true
+	defer func() { e.miniTransparent = saved }()
+	fn()
+}
+
+// ReadChar prompts for a single keystroke, accepting only the runes in valid.
+//
+// query-replace's y/n/!/q loop is built from this: a ReadString would force the
+// user to press RET after every answer.
+func (e *Editor) ReadChar(prompt string, valid []rune) (rune, error) {
+	if e.scr == nil {
+		return 0, command.ErrQuit
+	}
+	if e.miniDepth >= maxMiniDepth {
+		return 0, ErrTooDeep
+	}
+	e.miniDepth++
+	savedEcho := e.echo
+	defer func() { e.miniDepth--; e.echo = savedEcho }()
+
+	var gate pasteGate
+	for {
+		if !gate.on {
+			e.Echo("%s", prompt)
+			e.Redraw()
+		}
+		ev := e.nextEvent()
+		if ev == nil {
+			return 0, command.ErrQuit
+		}
+		if gate.swallow(ev, time.Now()) {
+			continue
+		}
+		ke, ok := ev.(*tcell.EventKey)
+		if !ok {
+			e.handleEvent(ev)
+			continue
+		}
+		k := e.answerKey(DecodeKey(ke, e.keys.TreatCtrlHAsBackspace), valid)
+		if k.Ctrl && !k.Meta && k.Rune == 'g' {
+			return 0, command.ErrQuit
+		}
+		if k.Special != keymap.SpecialNone || k.Ctrl || k.Meta || k.Rune == 0 {
+			continue
+		}
+		if len(valid) == 0 || containsRune(valid, k.Rune) {
+			return k.Rune, nil
+		}
+		// An unaccepted answer re-prompts rather than aborting, so a stray
+		// keystroke cannot silently cancel a replace the user is halfway
+		// through.
+	}
+}
+
+// ReadKey prompts for one raw keystroke, for describe-key.
+func (e *Editor) ReadKey(prompt string) (keymap.Key, error) {
+	if e.scr == nil {
+		return keymap.Key{}, command.ErrQuit
+	}
+	if e.miniDepth >= maxMiniDepth {
+		return keymap.Key{}, ErrTooDeep
+	}
+	e.miniDepth++
+	savedEcho := e.echo
+	defer func() { e.miniDepth--; e.echo = savedEcho }()
+
+	// describe-key wants the key that was pressed, not the first byte of a
+	// paste, so a paste is swallowed here just as at a y/n prompt.
+	var gate pasteGate
+	for {
+		if !gate.on {
+			e.Echo("%s", prompt)
+			e.Redraw()
+		}
+		ev := e.nextEvent()
+		if ev == nil {
+			return keymap.Key{}, command.ErrQuit
+		}
+		if gate.swallow(ev, time.Now()) {
+			continue
+		}
+		ke, ok := ev.(*tcell.EventKey)
+		if !ok {
+			e.handleEvent(ev)
+			continue
+		}
+		if k := e.answerKey(DecodeKey(ke, e.keys.TreatCtrlHAsBackspace), nil); k != (keymap.Key{}) {
+			return k, nil
+		}
+	}
+}
+
+func containsRune(rs []rune, r rune) bool {
+	for _, c := range rs {
+		if c == r {
+			return true
+		}
+	}
+	return false
+}

@@ -1,0 +1,580 @@
+package ui
+
+import (
+	"strings"
+
+	"github.com/Borderliner/nem/syntax"
+	"github.com/Borderliner/nem/text"
+	"github.com/Borderliner/nem/ui/blit"
+	"github.com/Borderliner/nem/view"
+	"github.com/gdamore/tcell/v2"
+)
+
+// Frame is everything the renderer needs to draw one frame. It is a snapshot
+// owned by the caller: Render reads it and does not retain it.
+type Frame struct {
+	// Tree arranges the windows. Required.
+	Tree *view.Tree
+	// Active is the window holding the cursor, unless the minibuffer does.
+	Active *view.Window
+	// Echo is the bottom row: an echo-area message, or the minibuffer's prompt
+	// and contents when MiniOn.
+	Echo string
+	// MiniPt is the cursor's display column within the echo row, counted from
+	// the left edge of the screen, so the caller decides how the prompt and the
+	// text it has typed combine.
+	MiniPt text.ColIdx
+	// MiniOn reports whether a minibuffer prompt is active, which is what moves
+	// the cursor to the echo row.
+	MiniOn bool
+	// Panels are drawn over the tiled frame, in slice order, so a later panel
+	// overlaps an earlier one. They are not part of the split tree and so cannot
+	// disturb its layout; view.PlacePanel decides where each one sits.
+	Panels []Panel
+	// CursorSet moves the cursor to CursorX, CursorY in absolute screen
+	// coordinates, overriding both the active window and the echo row.
+	//
+	// It exists because a prompt can render inside a panel, and neither of the
+	// other two can express that: MiniPt addresses a column of the echo row, and
+	// the window path derives its position from point in a buffer. The caller
+	// that drew the prompt into a panel already knows the exact cell, so it says
+	// so rather than the renderer inferring it.
+	CursorX, CursorY int
+	CursorSet        bool
+	// NameOf reports what each buffer is called, for the modeline. Optional: a
+	// nil NameOf falls back to naming a buffer after its file, which is all the
+	// renderer can work out on its own. See NameFunc.
+	NameOf NameFunc
+	// SpansOf reports how each line is classified, for syntax colour. Optional:
+	// a nil SpansOf draws the text uncoloured. See SpansFunc.
+	SpansOf SpansFunc
+	// SymbolsOf reports active symbol overlays. Optional: nil means no overlays.
+	SymbolsOf SymbolsFunc
+	// TypeOf reports each buffer's file type, and BranchOf the git branch its
+	// file sits on, for the modeline's segments. Both optional: a nil source
+	// simply contributes no segment. See TypeFunc and BranchFunc.
+	TypeOf   TypeFunc
+	BranchOf BranchFunc
+	// ChangesOf reports how each line differs from git's HEAD, for the change
+	// signs in the gutter. Optional: nil draws none. See ChangeFunc.
+	ChangesOf ChangeFunc
+	// ListingOf reports which buffers are listings rather than text. Optional:
+	// a nil ListingOf treats every buffer as text. See ListingFunc.
+	ListingOf ListingFunc
+	// RawOf reports which buffers are drawn as stored, with no right-to-left
+	// layout: a file that is not text, opened as text anyway, whose bytes
+	// only look like letters by chance. Optional: nil means none.
+	RawOf ListingFunc
+	// DirectionOf reports which buffers' lines each take their direction
+	// from their first letter - prose - and so are set against the right
+	// edge when that letter is Persian or Arabic. Every other buffer's lines
+	// go left to right, as code's do. Optional: nil means none. See bidi.go.
+	DirectionOf ListingFunc
+
+	// CursorOf reports which listings show point as a cursor rather than as
+	// a bar across the row: one being edited as text, as a directory's file
+	// names are to rename them, or one read as text, as a compilation's
+	// output is. Such a listing keeps its layout - no line numbers push its
+	// columns along - but point is where the eye and the typing go, not a
+	// row to pick. Optional.
+	CursorOf ListingFunc
+
+	// MiniRows lays a prompt's candidates out the emacs way, as Vertico does:
+	// the prompt on its row and the candidates on the rows below it, down to
+	// the bottom of the screen, full width. The windows give up the rows this
+	// takes rather than being drawn over, so every window and its modeline stay
+	// whole above the minibuffer. Empty means the minibuffer is the single echo
+	// row. See also MiniNote.
+	MiniRows []PanelLine
+	// Tabs lists the buffers the tab strip shows, one row across the top of the
+	// frame, or none when there are fewer than two. See tabs.go.
+	Tabs []TabItem
+	// MiniNote is drawn quietly at the right-hand end of the prompt row, when
+	// it fits beside what is typed: the candidate count.
+	MiniNote string
+}
+
+// minTreeRows is what the windows keep however many candidates want the rows:
+// one line of text and a modeline. A minibuffer that would take those is cut
+// short instead - a list with no view of the buffer it was opened from is a
+// worse trade than a shorter list.
+const minTreeRows = 2
+
+// ListingFunc reports whether a buffer is a listing - a directory, say - whose
+// lines are items rather than text.
+//
+// A listing is drawn differently in two ways. It has no line numbers, which
+// would count nothing a reader cares about. And the row point is on is drawn
+// as a bar across the window, as the selected row of a completion panel is,
+// because in a list the row is what point selects; a lone cursor cell in a
+// column of names is easy to lose.
+type ListingFunc func(*text.Buffer) bool
+
+// SymbolSpan is an occurrence to emphasize in the text area: a whole symbol,
+// or an incremental-search hit when Hit is set. A hit is drawn in the search
+// styles rather than in a symbol's colour, and Current marks the one the
+// search is on.
+type SymbolSpan struct {
+	Start, End text.RuneIdx
+	Color      int
+	Hit        bool
+	Current    bool
+	// Styled gives the span an explicit style, such as a preview's own colours.
+	// It wins over Hit, Current and Color.
+	Styled bool
+	Style  tcell.Style
+}
+
+// SymbolsFunc reports symbol occurrences for one line. Like SpansOf, it is
+// optional and is evaluated during rendering so edits cannot leave stale ranges.
+type SymbolsFunc func(*text.Buffer, int) []SymbolSpan
+
+// isListing asks f.ListingOf, treating a missing function as "no".
+func (f Frame) isListing(b *text.Buffer) bool {
+	return f.ListingOf != nil && b != nil && f.ListingOf(b)
+}
+
+// Render draws f onto scr using th. It does not call Show; the caller decides
+// when to flush, so a frame and a cursor move are one update rather than two.
+//
+// Rendering is a pure function of the frame, the theme and the screen: every
+// piece of per-window state it needs - which line is at the top, which column is
+// at the left - lives on the view.Window it is drawing. That is why this is a
+// function and not a method on a renderer object.
+func Render(scr tcell.Screen, f Frame, th Theme) {
+	if th.ScrollMargin < 0 {
+		th.ScrollMargin = 0
+	}
+	scr.Clear()
+
+	w, h := scr.Size()
+	if w <= 0 || h <= 0 || f.Tree == nil {
+		scr.HideCursor()
+		return
+	}
+
+	// The echo area is pinned to the bottom of the screen and is not part of
+	// the split tree, exactly as emacs's minibuffer window is not. It is one
+	// row, or more while a prompt lists its candidates beneath it.
+	echoY, miniRows := echoRow(f, h)
+	treeH := echoY
+
+	rects := map[*view.Window]view.Rect{}
+	if treeH > tabRows(f) {
+		rects = treeRects(f, w, treeH)
+		for win, rect := range rects {
+			info := modelineInfo{Name: f.NameOf, Type: f.TypeOf, Branch: f.BranchOf}
+			listing := f.isListing(win.Buf)
+			bar := listing && (f.CursorOf == nil || !f.CursorOf(win.Buf))
+			auto := f.DirectionOf != nil && f.DirectionOf(win.Buf)
+			wth := th
+			if f.RawOf != nil && f.RawOf(win.Buf) {
+				wth.Bidi = false
+			}
+			drawWindow(scr, rect, win, win == f.Active, listing, bar, auto, wth, info, f.SpansOf, f.SymbolsOf, f.ChangesOf)
+		}
+		for _, d := range treeDividers(f, w, treeH) {
+			drawDivider(scr, d, th)
+		}
+	}
+	if tabRows(f) > 0 {
+		drawTabBar(scr, 0, w, f.Tabs, th)
+	}
+
+	drawEcho(scr, echoY, w, f, th)
+	drawMiniRows(scr, echoY, w, miniRows, f, th)
+
+	// Panels last, over everything the tree drew, and before the cursor is
+	// placed: a prompt rendered inside a panel needs the hardware cursor to land
+	// on it, which means the panel has to exist on screen first.
+	for _, p := range f.Panels {
+		drawPanel(scr, p, th)
+	}
+
+	placeCursor(scr, w, h, echoY, rects, f, th)
+}
+
+// forgetScrolledAway lets go of the layout of the lines the window showed
+// last frame and does not show now, and notes what it shows now: rows
+// lines, from its top. A line's
+// layout is kept once measured, and without this a file scrolled through
+// from end to end kept all of it: 280MB for an 8MB file opened as text. Only
+// lines leaving the view are let go of, not every line off screen on every
+// frame, so two windows onto one buffer cannot take turns undoing each
+// other's work; a line that comes back is measured again as it is drawn.
+func forgetScrolledAway(win *view.Window, rows int) {
+	if d := win.Drawn; d.Buf != nil {
+		n := d.Buf.NumLines()
+		for ln := d.Top; ln < d.Top+d.Lines && ln < n; ln++ {
+			if d.Buf != win.Buf || ln < win.Top || ln >= win.Top+rows {
+				d.Buf.Line(ln).Forget()
+			}
+		}
+	}
+	win.Drawn = view.Span{Buf: win.Buf, Top: win.Top, Lines: rows}
+}
+
+// rowStyle is the background a window's line ln is drawn on: a listing's bar
+// under the selected row, the fainter band under the line point is on, or
+// nothing. Only the active window has either, as only it shows a region.
+func rowStyle(win *view.Window, ln int, active, bar bool, th Theme) tcell.Style {
+	switch {
+	case !active || ln != win.Buf.ClampPos(win.Pt).Line:
+	case bar:
+		return th.ListCursor
+	case th.HighlightLine:
+		return th.CurrentLine
+	}
+	return tcell.StyleDefault
+}
+
+// drawWindow draws one pane: its visible buffer text, then its modeline.
+func drawWindow(scr tcell.Screen, rect view.Rect, win *view.Window, active, listing, bar, auto bool, th Theme, info modelineInfo, spansOf SpansFunc, symbolsOf SymbolsFunc, changes ChangeFunc) {
+	if rect.W <= 0 || rect.H <= 0 || win == nil || win.Buf == nil {
+		return
+	}
+
+	textH := view.TextHeight(rect)
+	if textH > 0 {
+		// The gutter takes columns off the left of the pane, so everything below
+		// works in the narrowed text area: textX is where the text begins and
+		// textW how much of it there is. Handing drawLine those two is what puts
+		// the line numbers beyond the reach of the region and the bracket match.
+		gw := gutterFor(rect, win, listing, th)
+		textX, textW := rect.X+gw, rect.W-gw
+
+		// Scroll both axes first: afterwards point is guaranteed to lie within
+		// [Top, Top+textH) and [LeftCol, LeftCol+textW), which the cursor
+		// placement below relies on. Horizontal scrolling is given the narrowed
+		// width - given the pane's full width it would believe point was visible
+		// while it sat off the right edge by the width of the gutter.
+		//
+		// Wrapped, nothing is off to the side, and the window scrolls by the
+		// rows the lines fold into.
+		if th.Wrap {
+			win.LeftCol = 0
+			win.ScrollToPointWrapped(textH, th.ScrollMargin, textW)
+		} else {
+			win.ScrollToPoint(textH, th.ScrollMargin)
+			win.ScrollToPointHorizontally(textW)
+		}
+		rows := screenRows(win, textH, textW, th.Wrap)
+
+		drawGutter(scr, rect, win, rows, active, listing, th, changes)
+		forgetScrolledAway(win, linesShown(rows))
+
+		// Bracket matching is computed here, from point, at draw time. A command
+		// could not do it: Env cannot reach the screen by design, so it has
+		// nowhere to report a highlight to. Only the active window shows it,
+		// as in emacs.
+		var paren parenHL
+		if active {
+			paren = matchParenAt(win.Buf, win.Pt, th)
+		}
+		// The selection is computed the same way and in the same place, and is
+		// likewise shown only in the active window. regionFor returns nothing
+		// when the window is inactive or the buffer has no mark.
+		region := regionFor(win.Buf, win.Pt, active, th)
+
+		// Rows past the end of the buffer stay blank, as in emacs. A wrapped
+		// line's rows share what is worked out for the line: its colours, and
+		// its right-to-left layout.
+		var spans []syntax.Span
+		var symbols []SymbolSpan
+		var bidiRows []bidiLayout
+		spansLine, symbolsLine, bidiLine := -1, -1, -1
+		for i, r := range rows {
+			ln := r.line
+			l := win.Buf.Line(ln)
+			if spansOf != nil && spansLine != ln {
+				spans, spansLine = spansOf(win.Buf, ln), ln
+			}
+			if symbolsOf != nil && symbolsLine != ln {
+				symbols, symbolsLine = symbolsOf(win.Buf, ln), ln
+			}
+			reg := region.onLine(ln, l)
+			row := rowStyle(win, ln, active, bar, th)
+			y := rect.Y + i
+			switch {
+			case !th.Wrap && th.lineUsesBidi(l):
+				drawLineBidi(scr, textX, y, textW, l, win.LeftCol, th, paren.onLine(ln), reg, spans, symbols, row, auto)
+			case !th.Wrap:
+				drawLine(scr, textX, y, textW, l, win.LeftCol, th, paren.onLine(ln), reg, spans, symbols, row)
+			case th.lineUsesBidi(l):
+				if bidiLine != ln {
+					bidiRows, bidiLine = layoutBidiRows(l, l.WrapRows(text.ColIdx(textW)), auto), ln
+				}
+				drawRowBidi(scr, textX, y, textW, bidiRows[r.index], r, th, paren.onLine(ln), reg, spans, symbols, row)
+			default:
+				drawRow(scr, textX, y, textW, l, r, th, paren.onLine(ln), reg, spans, symbols, row)
+			}
+		}
+	}
+
+	// The modeline owns the bottom row of the pane, so a pane one row tall is
+	// all modeline and no text.
+	blit.Draw(scr, rect.X, rect.Y+rect.H-1, rect.W, 1,
+		modelineString(th, win, rect.W, active, info))
+}
+
+// drawLine writes one buffer line into the cells at y, starting from display
+// column left and clipped to width cells.
+//
+// It walks grapheme clusters, not runes: a cluster is the smallest thing that
+// occupies a cell, and passing the whole cluster to SetContent lets tcell place
+// its combining marks and blank the trailing cell of a wide glyph itself. That
+// matters because tcell measures width with the same uniseg segmenter that text
+// does, so the two cannot disagree about how many columns a glyph takes.
+//
+// hl carries any bracket-match highlight falling on this line, reg any part of
+// the selection. Where both fall on a cell they compose: the region contributes
+// the inverted background and the bracket keeps its weight and underline.
+//
+// row is the line's background - the current line's band, a listing's bar -
+// laid under every cell and on to the window's edge, beneath the syntax
+// colours and the region.
+func drawLine(scr tcell.Screen, x, y, width int, l *text.Line, left text.ColIdx, th Theme, hl lineHL, reg regionHL, spans []syntax.Span, symbols []SymbolSpan, row tcell.Style) {
+	lineW := l.Width()
+	truncated := lineW-left > text.ColIdx(width)
+
+	// A truncated line gives up its last column to the marker.
+	avail := text.ColIdx(width)
+	if truncated {
+		avail--
+	}
+
+	if avail > 0 {
+		syn := newLineSyntax(spans, &th)
+	walk:
+		// From the first cluster the window can show any of: a line scrolled
+		// far to the right is not walked from its start on every frame.
+		for c := range l.ClustersFrom(left) {
+			sx := c.Col - left
+			// Order matters and each step only adds: syntax sets the
+			// foreground, a matched bracket adds weight and an underline over
+			// whatever colour that is, and the region inverts the result.
+			style := syn.styleAt(c.Start, th.Text)
+			style = parenOver(hl, c.Start, style, th.Text)
+			style = overlay(style, row)
+			if sp, ok := symbolSpanAt(symbols, c.Start, c.Start+text.RuneIdx(len(c.Runes))); ok {
+				style = overlay(style, th.spanStyle(sp))
+			}
+			if reg.covers(c.Start, c.Start+text.RuneIdx(len(c.Runes))) {
+				style = overlay(style, reg.style)
+			}
+
+			switch {
+			case sx+c.Width <= 0:
+				// Entirely scrolled off to the left.
+			case sx < 0:
+				// Straddles the left edge. Drop it whole rather than draw half
+				// a glyph; emacs shows nothing there either.
+			case sx+c.Width > avail:
+				// Straddles the right edge. Everything after it is off-screen
+				// too, so stop rather than keep walking the line.
+				break walk
+			case c.Runes[0] == '\t':
+				// A tab is one cluster spanning several columns, and writing a
+				// literal tab would let the terminal reinterpret it.
+				for k := text.ColIdx(0); k < c.Width; k++ {
+					scr.SetContent(x+int(sx+k), y, ' ', nil, style)
+				}
+			default:
+				scr.SetContent(x+int(sx), y, c.Runes[0], c.Runes[1:], style)
+			}
+		}
+	}
+
+	// A selection running on to the next line is filled past this line's text to
+	// the window's right edge, so a multi-line region reads as one block instead
+	// of following the ragged ends of the lines. An empty line inside a
+	// selection is only visible at all because of this.
+	//
+	// It starts at the line's full display width, so it can never overwrite the
+	// trailing cell of a wide glyph. The truncation marker is deliberately left
+	// out: it is chrome reporting that text continues off screen, not content,
+	// and drawing it selected would claim it is part of what C-w would kill.
+	fill := row
+	if reg.on && reg.toEOL {
+		fill = overlay(row, reg.style)
+	}
+	if fill != tcell.StyleDefault && avail > 0 {
+		for sx := max(l.Width()-left, 0); sx < avail; sx++ {
+			scr.SetContent(x+int(sx), y, ' ', nil, fill)
+		}
+	}
+
+	if truncated {
+		scr.SetContent(x+width-1, y, TruncMarker, nil, th.Trunc)
+	}
+}
+
+func symbolSpanAt(spans []SymbolSpan, start, end text.RuneIdx) (SymbolSpan, bool) {
+	for _, sp := range spans {
+		if sp.Start < end && start < sp.End {
+			return sp, true
+		}
+		if sp.Start >= end {
+			break
+		}
+	}
+	return SymbolSpan{}, false
+}
+
+func symbolCovers(spans []SymbolSpan, start, end text.RuneIdx) bool {
+	_, ok := symbolSpanAt(spans, start, end)
+	return ok
+}
+
+// drawDivider fills the column between two side-by-side panes. Horizontal
+// splits produce none: the upper window's modeline already separates them.
+func drawDivider(scr tcell.Screen, d view.Rect, th Theme) {
+	if d.W <= 0 || d.H <= 0 {
+		return
+	}
+	one := th.Divider.Render(string(DividerRune))
+	col := strings.TrimSuffix(strings.Repeat(one+"\n", d.H), "\n")
+	blit.Draw(scr, d.X, d.Y, d.W, d.H, col)
+}
+
+// drawEcho draws the bottom row: a minibuffer prompt when one is active,
+// otherwise whatever message the editor wants to show.
+func drawEcho(scr tcell.Screen, y, width int, f Frame, th Theme) {
+	if y < 0 || f.Echo == "" {
+		return
+	}
+	// A minibuffer being typed into is ordinary text and must not be dimmed
+	// like a transient message.
+	style := th.Echo
+	if f.MiniOn {
+		style = th.Mini
+	}
+	s := f.Echo
+	if th.usesBidi([]rune(s)) {
+		s, _ = bidiString(s)
+	}
+	blit.Draw(scr, 0, y, width, 1, style.Render(s))
+}
+
+// drawMiniRows draws the candidates beneath the prompt row at y, and the
+// count at the prompt row's right-hand end.
+//
+// Candidates are drawn as the completion panel draws its rows, match emphasis
+// and selection bar included, so the two styles differ only in where the list
+// sits.
+func drawMiniRows(scr tcell.Screen, y, width int, rows []PanelLine, f Frame, th Theme) {
+	for i, ln := range rows {
+		drawPanelLine(scr, 0, y+1+i, width, ln, th)
+	}
+	if f.MiniNote == "" {
+		return
+	}
+	// Only where it clears what is typed by a gap: the prompt is the thing
+	// being edited and the count is a footnote to it.
+	used, note := cellWidth(f.Echo), cellWidth(f.MiniNote)
+	if x := width - note - 1; x >= used+2 {
+		drawPanelText(scr, x, y, note, f.MiniNote, th.MiniNote, nil, nil, th)
+	}
+}
+
+// cellWidth measures s in screen columns, through text.Line so it agrees with
+// the text area about wide glyphs.
+func cellWidth(s string) int {
+	l := text.NewLine([]rune(s))
+	return int(l.Width())
+}
+
+// placeCursor puts the real hardware cursor at point.
+//
+// This is the whole reason nem draws through tcell rather than a framework that
+// owns the screen: a styled cell pretending to be a cursor is visibly wrong to
+// look at all day, and it is invisible to an IME and to a screen reader.
+func placeCursor(scr tcell.Screen, w, h, echoY int, rects map[*view.Window]view.Rect, f Frame, th Theme) {
+	// An explicit override wins over everything, including an active prompt: when
+	// completion renders the prompt inside a panel, MiniOn is still set but the
+	// echo row is not where the user is typing.
+	if f.CursorSet {
+		scr.ShowCursor(clampInt(f.CursorX, 0, w-1), clampInt(f.CursorY, 0, h-1))
+		return
+	}
+	if f.MiniOn {
+		x := int(f.MiniPt)
+		if rs := []rune(f.Echo); th.usesBidi(rs) {
+			// MiniPt counts columns in the prompt as stored; the prompt is
+			// drawn in visual order, so the cursor goes where its character
+			// was drawn.
+			at := text.RuneIdx(len(rs))
+			line := text.NewLine(rs)
+			for c := range line.Clusters() {
+				if c.Col >= f.MiniPt {
+					at = c.Start
+					break
+				}
+			}
+			_, pos := bidiString(f.Echo)
+			x = pos(at)
+		}
+		if x < 0 {
+			x = 0
+		}
+		if x > w-1 {
+			x = w - 1
+		}
+		scr.ShowCursor(x, echoY)
+		return
+	}
+
+	rect, ok := rects[f.Active]
+	if !ok || f.Active == nil || f.Active.Buf == nil {
+		scr.HideCursor()
+		return
+	}
+	textH := view.TextHeight(rect)
+	if textH <= 0 || rect.W <= 0 {
+		scr.HideCursor()
+		return
+	}
+
+	// The same gutter width drawWindow used, from the same function, because a
+	// disagreement here puts the cursor beside the character it is on.
+	gw := gutterFor(rect, f.Active, f.isListing(f.Active.Buf), th)
+	textW := rect.W - gw
+
+	pt := f.Active.Buf.ClampPos(f.Active.Pt)
+	l := f.Active.Buf.Line(pt.Line)
+	bidiOn := th.lineUsesBidi(l) && (f.RawOf == nil || !f.RawOf(f.Active.Buf))
+	auto := f.DirectionOf != nil && f.DirectionOf(f.Active.Buf)
+	sx := int(l.DisplayCol(pt.Col) - f.Active.LeftCol)
+	if bidiOn {
+		sx = bidiCursorCol(l, pt.Col, text.ColIdx(textW), f.Active.LeftCol, auto)
+	}
+	sy := pt.Line - f.Active.Top
+	if th.Wrap {
+		// On the row that holds point: the rows drawWindow drew, from the
+		// same function, so the two agree.
+		for i, r := range screenRows(f.Active, textH, textW, true) {
+			if r.line != pt.Line || pt.Col < r.from || pt.Col >= r.to && !r.last {
+				continue
+			}
+			sy, sx = i, int(l.DisplayCol(pt.Col)-r.col)
+			if bidiOn {
+				lay := layoutBidiRows(l, l.WrapRows(text.ColIdx(textW)), auto)[r.index]
+				sx = int(lay.origin(text.ColIdx(textW), 0) + lay.cursorAt(pt.Col))
+			}
+			break
+		}
+	}
+	if sx < 0 {
+		sx = 0
+	}
+	if sx > textW-1 {
+		sx = textW - 1
+	}
+	if sy < 0 {
+		sy = 0
+	}
+	if sy > textH-1 {
+		sy = textH - 1
+	}
+	scr.ShowCursor(rect.X+gw+sx, rect.Y+sy)
+}

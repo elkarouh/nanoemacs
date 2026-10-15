@@ -1,0 +1,888 @@
+package editor
+
+import (
+	"fmt"
+	"math/rand/v2"
+	"slices"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/fuzzy"
+	"github.com/Borderliner/nem/text"
+	"github.com/Borderliner/nem/view"
+	"github.com/gdamore/tcell/v2"
+)
+
+// --- the session, tested directly ----------------------------------------
+
+// from builds a completion over a fixed candidate set.
+func from(names ...string) *completion {
+	return newCompletion(command.CompleteFrom(names), "")
+}
+
+func candidates(c *completion) []string {
+	out := make([]string, 0, c.count())
+	for _, r := range c.ranked {
+		out = append(out, r.Candidate)
+	}
+	return out
+}
+
+// Typing narrows the list, and erasing widens it again. The second half is the
+// one worth asserting: a filter that only ever narrowed would leave the user
+// stuck with whatever their longest typo matched.
+func TestCompletionNarrowsAndWidens(t *testing.T) {
+	c := from("forward-char", "forward-word", "kill-line", "save-buffer")
+
+	if got := c.count(); got != 4 {
+		t.Fatalf("empty input matched %d candidates, want all 4", got)
+	}
+
+	c.refresh("forw")
+	got := candidates(c)
+	if len(got) != 2 || got[0] != "forward-char" && got[0] != "forward-word" {
+		t.Errorf("input %q matched %q, want the two forward- commands", "forw", got)
+	}
+
+	c.refresh("forward-c")
+	if got := candidates(c); len(got) != 1 || got[0] != "forward-char" {
+		t.Errorf("input %q matched %q, want only forward-char", "forward-c", got)
+	}
+
+	// Backspaced back to "forw": the list must grow again.
+	c.refresh("forw")
+	if got := c.count(); got != 2 {
+		t.Errorf("after erasing, %d candidates matched, want 2 again", got)
+	}
+}
+
+// Fuzzy matching is the point: a subsequence finds a command no prefix would.
+func TestCompletionMatchesASubsequence(t *testing.T) {
+	c := from("forward-char", "backward-char", "kill-line")
+	c.refresh("fwc")
+	got := candidates(c)
+	if len(got) == 0 || got[0] != "forward-char" {
+		t.Errorf("fuzzy input %q ranked %q, want forward-char first", "fwc", got)
+	}
+}
+
+// An exact match goes first even where the scorer prefers another. It rewards
+// a camelCase boundary, so fooBar outscores foobar for the input "foobar";
+// without the promotion RET would take fooBar, a name nobody typed.
+func TestCompletionRanksAnExactMatchFirst(t *testing.T) {
+	c := from("fooBar", "foobar", "foo_bar")
+	c.refresh("foobar")
+	if got, _ := c.selected(); got != "foobar" {
+		t.Errorf("input %q highlights %q (ranked %q), want the exact match first",
+			"foobar", got, candidates(c))
+	}
+	if got := c.count(); got != 3 {
+		t.Errorf("promoting the exact match left %d candidates, want all 3", got)
+	}
+}
+
+// A prefix every candidate shares is not scored. At find-file it is the
+// directory just walked into, and scoring it tied every entry, so the length
+// tie-break highlighted the shortest name - often a dotfile - where the listing
+// order, the one RET is expected to take, puts alpha.txt first.
+func TestCompletionIgnoresAPrefixEveryCandidateShares(t *testing.T) {
+	c := from("d/alpha.txt", "d/b.go", "d/.x")
+
+	c.refresh("d/")
+	if got, _ := c.selected(); got != "d/alpha.txt" {
+		t.Errorf("input %q highlights %q (ranked %q), want the listing's first entry",
+			"d/", got, candidates(c))
+	}
+
+	// What follows the prefix still ranks, and the emphasised positions are
+	// still offsets into the whole candidate.
+	c.refresh("d/b")
+	if got := candidates(c); len(got) != 1 || got[0] != "d/b.go" {
+		t.Fatalf("input %q matched %q, want only d/b.go", "d/b", got)
+	}
+	if got := c.ranked[0].Match.Indices; len(got) != 1 || got[0] != 2 {
+		t.Errorf("d/b.go emphasises runes %v, want [2]", got)
+	}
+}
+
+// The shared prefix ends on a rune boundary: é and è share their first byte,
+// and cutting there would hand the scorer half a character.
+func TestSharedPrefixStopsOnARuneBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		cands []string
+		want  int
+	}{
+		{"é", []string{"éa", "èb"}, 0},
+		{"xé", []string{"xéa", "xèb"}, 1},
+		{"ab", []string{"abc", "abd"}, 2},
+		{"ab", nil, 0},
+	} {
+		if got := sharedPrefixLen(tc.input, tc.cands); got != tc.want {
+			t.Errorf("sharedPrefixLen(%q, %q) = %d, want %d", tc.input, tc.cands, got, tc.want)
+		}
+	}
+}
+
+// The selection resets to the best match whenever the list changes, and can
+// never address a candidate that has stopped existing.
+func TestCompletionSelectionIsClampedWhenTheListShrinks(t *testing.T) {
+	c := from("alpha", "alpine", "alps", "beta")
+	c.refresh("al")
+	c.move(2)
+	if c.sel != 2 {
+		t.Fatalf("setup: selection = %d, want 2", c.sel)
+	}
+
+	// Narrow to a single candidate. A stale index would now be out of range and
+	// selected() would either panic or name the wrong thing.
+	c.refresh("alpha")
+	if c.sel != 0 {
+		t.Errorf("selection = %d after the list shrank, want 0", c.sel)
+	}
+	got, ok := c.selected()
+	if !ok || got != "alpha" {
+		t.Errorf("selected() = %q, %v; want \"alpha\", true", got, ok)
+	}
+}
+
+// Wrapping is deliberate: these lists are short and C-p to reach the last entry
+// is a gesture people use.
+func TestCompletionSelectionWraps(t *testing.T) {
+	c := from("one", "two", "three")
+	if c.sel != 0 {
+		t.Fatalf("setup: selection = %d, want 0", c.sel)
+	}
+	c.move(-1)
+	if c.sel != 2 {
+		t.Errorf("C-p from the first entry selected %d, want the last (2)", c.sel)
+	}
+	c.move(1)
+	if c.sel != 0 {
+		t.Errorf("C-n from the last entry selected %d, want the first (0)", c.sel)
+	}
+}
+
+// An empty list must not leave a selection pointing at anything.
+func TestCompletionWithNoMatchesHasNoSelection(t *testing.T) {
+	c := from("alpha", "beta")
+	c.refresh("zzzz")
+	if c.count() != 0 {
+		t.Fatalf("setup: %q matched something", "zzzz")
+	}
+	if _, ok := c.selected(); ok {
+		t.Error("selected() reported a candidate with none matching")
+	}
+	c.move(1) // must not panic or invent an index
+	if c.sel != 0 {
+		t.Errorf("selection = %d on an empty list, want 0", c.sel)
+	}
+}
+
+// The visible window follows the selection in a list longer than it.
+func TestCompletionScrollsToKeepTheSelectionVisible(t *testing.T) {
+	names := make([]string, 0, 30)
+	for _, s := range []string{"a", "b", "c"} {
+		for i := 0; i < 10; i++ {
+			names = append(names, s+string(rune('0'+i)))
+		}
+	}
+	c := newCompletion(command.CompleteFrom(names), "")
+	c.rows = 5
+
+	c.move(7)
+	if c.sel < c.top || c.sel >= c.top+c.visibleRows() {
+		t.Errorf("selection %d outside the visible window [%d,%d)", c.sel, c.top, c.top+c.visibleRows())
+	}
+	c.move(-1)
+	if c.sel < c.top || c.sel >= c.top+c.visibleRows() {
+		t.Errorf("after moving back, selection %d outside [%d,%d)", c.sel, c.top, c.top+c.visibleRows())
+	}
+}
+
+// A page moves the selection a screenful and the list with it, and stops at
+// the ends rather than wrapping as a single step does.
+func TestCompletionPages(t *testing.T) {
+	names := make([]string, 23)
+	for i := range names {
+		names[i] = fmt.Sprintf("cmd-%02d", i)
+	}
+	c := newCompletion(command.CompleteFrom(names), "")
+	c.rows = 5
+	for _, st := range []struct{ d, sel, top int }{
+		{1, 5, 5}, {1, 10, 10}, {3, 22, 18}, {1, 22, 18}, {-1, 17, 13}, {-9, 0, 0},
+	} {
+		c.page(st.d)
+		if c.sel != st.sel || c.top != st.top {
+			t.Fatalf("page(%d): selection %d, top %d; want %d, %d", st.d, c.sel, c.top, st.sel, st.top)
+		}
+	}
+	c.goTo(22)
+	if c.sel != 22 || c.top != 18 {
+		t.Errorf("to the last: selection %d, top %d; want 22, 18", c.sel, c.top)
+	}
+	c.goTo(0)
+	if c.sel != 0 || c.top != 0 {
+		t.Errorf("to the first: selection %d, top %d; want 0, 0", c.sel, c.top)
+	}
+}
+
+// In a prompt, C-v and M-v page through the candidates and M-< and M-> go to
+// the first and the last, as in Vertico - and <pgdn>, on the same command as
+// C-v, pages too.
+func TestPageKeysMoveThroughTheCandidates(t *testing.T) {
+	names := make([]string, 40)
+	for i := range names {
+		names[i] = fmt.Sprintf("cmd-%02d", i)
+	}
+	opts := command.ReadOpts{Prompt: "Pick: ", Complete: command.CompleteFrom(names)}
+	for _, tc := range []struct {
+		keys []string
+		want string
+	}{
+		{[]string{"C-v", "C-v", "M-v"}, fmt.Sprintf("cmd-%02d", completionRows)},
+		{[]string{"M->"}, "cmd-39"},
+		{[]string{"M->", "M-<"}, "cmd-00"},
+		{[]string{"<pgdn>"}, fmt.Sprintf("cmd-%02d", completionRows)},
+		{[]string{"C-u", "3", "C-v"}, fmt.Sprintf("cmd-%02d", 3*completionRows)},
+	} {
+		e, scr := newTestEditor(t)
+		feed(t, scr, key(t, append(tc.keys, "RET")...))
+		got, err := e.ReadString(opts)
+		if err != nil || got != tc.want {
+			t.Errorf("%v RET: %q, %v; want %q", tc.keys, got, err, tc.want)
+		}
+	}
+}
+
+// --- the panel -----------------------------------------------------------
+
+// promptOn builds an editor with a live prompt, without entering the nested
+// event loop, so the panel can be inspected directly.
+func promptOn(t *testing.T, w, h int, opts command.ReadOpts, typed string) (*Editor, *miniState) {
+	t.Helper()
+	scr := tcell.NewSimulationScreen("UTF-8")
+	if err := scr.Init(); err != nil {
+		t.Fatalf("screen init: %v", err)
+	}
+	scr.SetSize(w, h)
+	t.Cleanup(scr.Fini)
+
+	e, err := New(scr)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	buf := text.NewBuffer()
+	if typed != "" {
+		if err := buf.Insert(text.Pos{}, []rune(typed)); err != nil {
+			t.Fatalf("seed prompt: %v", err)
+		}
+	}
+	win := view.NewWindow(buf)
+	win.Pt = buf.End()
+	// Through the same constructor ReadString uses, so the session-creation rule
+	// is exercised here rather than restated.
+	ms := newMiniState(opts, buf, win)
+	e.mini = ms
+	return e, ms
+}
+
+func TestPanelShowsPromptCandidatesAndSelection(t *testing.T) {
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"forward-char", "forward-word", "kill-line"}),
+	}, "forw")
+
+	p, cx, cy, ok := e.panelFor(ms)
+	if !ok {
+		t.Fatal("panelFor declined to build a panel in an 80x24 frame")
+	}
+	if len(p.Lines) < 2 {
+		t.Fatalf("panel has %d lines, want the prompt plus candidates", len(p.Lines))
+	}
+	if got := p.Lines[0].Text; got != "M-x forw" {
+		t.Errorf("first line = %q, want the prompt and its contents", got)
+	}
+	if !strings.Contains(p.Title, "/2") {
+		t.Errorf("title = %q, want a count over the 2 matches", p.Title)
+	}
+
+	var selected int
+	for _, ln := range p.Lines[1:] {
+		if ln.Selected {
+			selected++
+		}
+		if len(ln.Match) == 0 {
+			t.Errorf("candidate %q carries no match indices, so nothing would be emphasised", ln.Text)
+		}
+	}
+	if selected != 1 {
+		t.Errorf("%d candidate rows marked selected, want exactly 1", selected)
+	}
+
+	// The cursor must land on the prompt row inside the panel, not on the echo
+	// row: the panel is where the user is typing.
+	if cy != p.Rect.Y+1 {
+		t.Errorf("cursor row = %d, want the panel's first interior row %d", cy, p.Rect.Y+1)
+	}
+	if cx <= p.Rect.X || cx >= p.Rect.X+p.Rect.W {
+		t.Errorf("cursor column %d is outside the panel %v", cx, p.Rect)
+	}
+}
+
+// The popup is centred, not anchored to point: the same gesture must put the
+// panel in the same place whatever line the user happens to be on.
+func TestPopupPanelIsCentredRegardlessOfPoint(t *testing.T) {
+	opts := command.ReadOpts{Prompt: "M-x ", Complete: command.CompleteFrom([]string{"one", "two"})}
+
+	e, ms := promptOn(t, 80, 24, opts, "")
+	first, _, _, ok := e.panelFor(ms)
+	if !ok {
+		t.Fatal("no panel")
+	}
+
+	// Move point far away in the text buffer and rebuild.
+	e2, ms2 := promptOn(t, 80, 24, opts, "")
+	tb := e2.tree.Windows()[0].Buf
+	if err := tb.Insert(text.Pos{}, []rune("aaa\nbbb\nccc\nddd\neee\nfff")); err != nil {
+		t.Fatal(err)
+	}
+	e2.tree.Windows()[0].Pt = text.Pos{Line: 5, Col: 3}
+	second, _, _, ok := e2.panelFor(ms2)
+	if !ok {
+		t.Fatal("no panel")
+	}
+
+	if first.Rect != second.Rect {
+		t.Errorf("panel moved with point: %v then %v; a centred popup must not", first.Rect, second.Rect)
+	}
+}
+
+// The default is the emacs shape, as Vertico draws it: the prompt at the foot
+// of the screen with the candidates listed beneath it, full width, the count
+// at the prompt's right, and the window above shrunk to make room - its
+// modeline intact directly over the prompt rather than covered by a panel.
+func TestBottomStyleListsCandidatesBelowThePrompt(t *testing.T) {
+	e, _ := promptOn(t, 60, 20, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"forward-char", "forward-word", "kill-line"}),
+	}, "forw")
+	if e.comp.style != completionBottom {
+		t.Fatalf("default completion style is %v, want bottom", e.comp.style)
+	}
+
+	e.Redraw()
+
+	// Two matches, so the prompt is three rows from the bottom.
+	promptY := 20 - 3
+	if got := screenRow(t, e.scr.(tcell.SimulationScreen), promptY); !strings.HasPrefix(got, "M-x forw") || !strings.HasSuffix(strings.TrimRight(got, " "), "1/2") {
+		t.Errorf("prompt row = %q, want the prompt with the count at its right", got)
+	}
+	for i, want := range []string{"forward-char", "forward-word"} {
+		if got := screenRow(t, e.scr.(tcell.SimulationScreen), promptY+1+i); !strings.HasPrefix(got, want) {
+			t.Errorf("row %d = %q, want candidate %s", promptY+1+i, got, want)
+		}
+	}
+	if got := screenRow(t, e.scr.(tcell.SimulationScreen), promptY-1); !strings.Contains(got, "*scratch*") {
+		t.Errorf("row above the prompt = %q, want the window's modeline", got)
+	}
+	// The selected candidate is the bar, across the full width.
+	cells, w, _ := e.scr.(tcell.SimulationScreen).GetContents()
+	if _, _, attr := cells[(promptY+1)*w+w-1].Style.Decompose(); attr&tcell.AttrReverse == 0 {
+		t.Error("the selected candidate's bar does not reach the right edge")
+	}
+	if x, y, _ := e.scr.(tcell.SimulationScreen).GetCursor(); y != promptY || x != len("M-x forw") {
+		t.Errorf("cursor at (%d,%d), want the end of the prompt (%d,%d)", x, y, len("M-x forw"), promptY)
+	}
+}
+
+// A candidate's note - M-x's keys - sits in a column two past the widest
+// candidate shown, drawn quieter than the candidate itself.
+func TestNotesLineUpBesideTheCandidates(t *testing.T) {
+	keys := map[string]string{"find-file": "C-x C-f", "kill-line": "C-k"}
+	e, _ := promptOn(t, 60, 20, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"find-file", "kill-line", "forward-paragraph"}),
+		Annotate: func(c string) string { return keys[c] },
+	}, "")
+	e.Redraw()
+
+	scr := e.scr.(tcell.SimulationScreen)
+	col := len("forward-paragraph") + 2
+	found := 0
+	for y := 20 - 4; y < 20; y++ {
+		row := screenRow(t, scr, y)
+		name := strings.Fields(row)[0]
+		note, ok := keys[name]
+		if !ok {
+			continue
+		}
+		found++
+		if got := strings.TrimRight(row[col:], " "); got != note {
+			t.Errorf("row %q: note at column %d is %q, want %q", row, col, got, note)
+		}
+		if name != "find-file" { // the selected row takes the bar's style
+			cells, w, _ := scr.GetContents()
+			if cells[y*w+col].Style == cells[y*w].Style {
+				t.Errorf("the note on %q is styled like the candidate, not quieter", name)
+			}
+		}
+	}
+	if found != 2 {
+		t.Errorf("found %d annotated rows, want 2", found)
+	}
+}
+
+// The popup is wide enough for the notes as well as the candidates.
+func TestPopupMakesRoomForNotes(t *testing.T) {
+	long := "C-x C-a C-b C-c C-d C-e"
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"find-file"}),
+		Annotate: func(string) string { return long },
+	}, "")
+	e.comp.style = completionPopup
+	p, _, _, ok := e.panelFor(ms)
+	if !ok {
+		t.Fatal("no panel")
+	}
+	ln := p.Lines[1]
+	if need := ln.NoteCol + len(long) + 2; p.Rect.W < need {
+		t.Errorf("panel is %d wide, want at least %d to hold %q beside its note", p.Rect.W, need, ln.Text)
+	}
+}
+
+// The list keeps the height it has reached while the prompt is open, as
+// emacs's grow-only minibuffer does, so narrowing the list does not resize the
+// windows under the user as they type.
+func TestBottomStyleDoesNotShrinkWhileTyping(t *testing.T) {
+	e, ms := promptOn(t, 60, 20, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"alpha", "beta", "gamma"}),
+	}, "")
+	if f := e.frame(); len(f.MiniRows) != 3 {
+		t.Fatalf("%d rows for three candidates, want 3", len(f.MiniRows))
+	}
+
+	ms.comp.refresh("gam")
+	f := e.frame()
+	if len(f.MiniRows) != 3 {
+		t.Fatalf("narrowed to one match, the list is %d rows; want it to stay 3", len(f.MiniRows))
+	}
+	if f.MiniRows[0].Text != "gamma" || f.MiniRows[1].Text != "" {
+		t.Errorf("rows = %+v, want gamma then blanks", f.MiniRows)
+	}
+}
+
+// On a short screen the list gives way: the windows keep a line of text and a
+// modeline, and the selection stays in view.
+func TestBottomStyleLeavesTheWindowsARow(t *testing.T) {
+	names := make([]string, 30)
+	for i := range names {
+		names[i] = fmt.Sprintf("cmd-%02d", i)
+	}
+	e, ms := promptOn(t, 40, 8, command.ReadOpts{Prompt: "M-x ", Complete: command.CompleteFrom(names)}, "")
+	ms.comp.move(20)
+
+	f := e.frame()
+	if got := len(f.MiniRows); got != 8-3 {
+		t.Fatalf("%d candidate rows on an 8-row screen, want 5", got)
+	}
+	var sel string
+	for _, r := range f.MiniRows {
+		if r.Selected {
+			sel = r.Text
+		}
+	}
+	if sel != "cmd-20" {
+		t.Errorf("selected row shows %q, want cmd-20 scrolled into view", sel)
+	}
+}
+
+// The centred popup is still there for those who prefer it.
+func TestPopupStyleIsASetting(t *testing.T) {
+	e, _ := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"one", "two"}),
+	}, "")
+	e.SetCompletionStyle("popup")
+
+	f := e.frame()
+	if len(f.Panels) != 1 || len(f.MiniRows) != 0 {
+		t.Errorf("popup style gave %d panels and %d bottom rows, want one panel", len(f.Panels), len(f.MiniRows))
+	}
+}
+
+// A frame too small for a readable panel falls back to the echo-row prompt
+// rather than drawing an unusable box.
+func TestTinyFrameFallsBackToTheEchoRow(t *testing.T) {
+	e, ms := promptOn(t, 4, 2, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"one", "two"}),
+	}, "")
+
+	if _, _, _, ok := e.panelFor(ms); ok {
+		t.Error("built a panel in a 4x2 frame; want a refusal so the prompt falls back to the echo row")
+	}
+
+	// And the frame the renderer receives must still carry the prompt.
+	f := e.frame()
+	if !f.MiniOn {
+		t.Error("frame does not show the prompt on the echo row")
+	}
+	if f.CursorSet {
+		t.Error("cursor was overridden to a panel that was never placed")
+	}
+	if len(f.Panels) != 0 {
+		t.Errorf("%d panels in the frame, want none", len(f.Panels))
+	}
+}
+
+// An incremental search grows no candidate panel. C-s passes no Complete
+// function, and that absence - not an inspection of command names - is what
+// distinguishes a search prompt from a completing one.
+func TestIsearchPromptHasNoPanel(t *testing.T) {
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{Prompt: "I-search: "}, "beta")
+	if ms.comp != nil {
+		t.Fatal("a prompt with no Complete function built a completion session")
+	}
+	if _, _, _, ok := e.panelFor(ms); ok {
+		t.Error("panelFor built a panel for a prompt with no candidates")
+	}
+	f := e.frame()
+	if len(f.Panels) != 0 {
+		t.Errorf("%d panels for a search prompt, want none", len(f.Panels))
+	}
+	if !f.MiniOn {
+		t.Error("the search prompt is not on the echo row")
+	}
+}
+
+// --- RET, TAB and M-RET, driven through the real prompt -------------------
+
+// Fuzzy matching plus RET-takes-the-selection, end to end: a subsequence no
+// prefix completion could resolve reaches the command.
+func TestFuzzyInputThenRetRunsTheSelectedCommand(t *testing.T) {
+	e, scr := newTestEditor(t, "abcdef")
+	feed(t, scr, txt("fwc"), key(t, "RET"))
+	press(t, e, "M-x")
+	// forward-char ran, so point advanced one grapheme.
+	wantPt(t, e, 0, 1)
+}
+
+// C-n moves the selection, and RET then runs what is highlighted rather than
+// what was typed.
+func TestSelectionMovesAndRetRunsIt(t *testing.T) {
+	e, scr := newTestEditor(t, "one two three")
+	// "forward-" matches forward-char and forward-word. Whichever ranks first,
+	// C-n moves to the other, so the two cases are distinguished by where point
+	// ends up: one column for a char, four for the first word.
+	feed(t, scr, txt("forward-"), key(t, "C-n", "RET"))
+	press(t, e, "M-x")
+	if got := e.Win().Pt.Col; got != 1 && got != 3 {
+		t.Errorf("point column = %d after C-n then RET, want 1 (char) or 3 (word)", got)
+	}
+}
+
+// TAB fills the line with the selected candidate, which is what makes it useful
+// under fuzzy matching - the candidates rarely share a prefix with the input, so
+// a common-prefix extension would usually do nothing.
+func TestTabCompletesToTheSelection(t *testing.T) {
+	e, scr := newTestEditor(t, "abcdef")
+	feed(t, scr, txt("fwc"), key(t, "TAB", "RET"))
+	press(t, e, "M-x")
+	wantPt(t, e, 0, 1)
+}
+
+// With nothing highlighted and no match required, RET accepts exactly what was
+// typed, so a name that does not exist yet can still be created. That is all
+// RequireMatch decides now: a highlighted candidate wins either way.
+func TestRetAcceptsTypedTextWhenNothingMatches(t *testing.T) {
+	e, scr := newTestEditor(t, "hello")
+	feed(t, scr, txt("brand-new-buffer"), key(t, "RET"))
+	press(t, e, "C-x", "b")
+	if got := e.BufferName(e.Buf()); got != "brand-new-buffer" {
+		t.Errorf("visiting buffer %q, want the typed name brand-new-buffer", got)
+	}
+}
+
+// M-RET forces the literal line at a prompt that allows one.
+func TestMetaRetAcceptsLiteralInput(t *testing.T) {
+	e, scr := newTestEditor(t, "hello")
+	feed(t, scr, txt("literal-name"), key(t, "M-RET"))
+	press(t, e, "C-x", "b")
+	if got := e.BufferName(e.Buf()); got != "literal-name" {
+		t.Errorf("visiting buffer %q, want literal-name", got)
+	}
+}
+
+// M-RET must not be a back door around RequireMatch, or the flag is decorative.
+func TestMetaRetIsRefusedWhenAMatchIsRequired(t *testing.T) {
+	e, scr := newTestEditor(t, "abc")
+	feed(t, scr, txt("no-such-command"), key(t, "M-RET", "C-g"))
+	press(t, e, "M-x")
+	wantEcho(t, e, "requires an existing match")
+	wantPt(t, e, 0, 0)
+}
+
+// Descending only makes sense when it changes the input. A candidate that is
+// already exactly what was typed is taken even if Descend says to walk into
+// it; otherwise RET would leave the prompt exactly as it was, a key that does
+// nothing.
+func TestRetOnAnExactDescendCandidateAccepts(t *testing.T) {
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:   "Find file: ",
+		Complete: command.CompleteFrom([]string{"src/", "srv/"}),
+		Descend:  func(string) bool { return true },
+	}, "src/")
+
+	ms.accept(e)
+	if !ms.done {
+		t.Error("RET on an exact candidate kept the prompt open")
+	}
+	if got := ms.contents(); got != "src/" {
+		t.Errorf("accepted %q, want %q", got, "src/")
+	}
+}
+
+// With nothing highlighted and a match required, RET refuses and keeps the
+// prompt open with the text intact.
+func TestRetRefusesWhenNothingMatchesAndAMatchIsRequired(t *testing.T) {
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:       "M-x ",
+		Complete:     command.CompleteFrom([]string{"alpha", "beta"}),
+		RequireMatch: true,
+	}, "zzz")
+
+	ms.accept(e)
+	if ms.done {
+		t.Error("RET accepted text that matches nothing at a RequireMatch prompt")
+	}
+	wantEcho(t, e, "No match")
+	if got := ms.contents(); got != "zzz" {
+		t.Errorf("prompt holds %q, want the typed text kept", got)
+	}
+}
+
+// The prompt is still a real buffer, so the ordinary editing commands work in it
+// and the candidate list follows what they leave behind. C-a C-k empties the
+// line, which must widen the list rather than leave it filtered by text that is
+// no longer there.
+func TestEditingThePromptRefiltersTheList(t *testing.T) {
+	e, ms := promptOn(t, 80, 24, command.ReadOpts{
+		Prompt:   "M-x ",
+		Complete: command.CompleteFrom([]string{"alpha", "alpine", "beta"}),
+	}, "")
+
+	ms.replace(e, "alp")
+	if got := ms.comp.count(); got != 2 {
+		t.Fatalf("after typing %q, %d candidates matched, want 2", "alp", got)
+	}
+	ms.replace(e, "")
+	if got := ms.comp.count(); got != 3 {
+		t.Errorf("after clearing the prompt, %d candidates matched, want all 3", got)
+	}
+}
+
+// feedAfter injects groups of keys in turn, waiting between them: for keys
+// that must come after a search in the background has come back.
+func feedAfter(t *testing.T, scr tcell.SimulationScreen, wait time.Duration, groups ...[]injected) {
+	t.Helper()
+	go func() {
+		for i, g := range groups {
+			if i > 0 {
+				time.Sleep(wait)
+			}
+			for _, ev := range g {
+				scr.InjectKey(ev.key, ev.r, ev.mod)
+			}
+		}
+	}()
+}
+
+// A prompt whose candidates a search supplies lists what the search found
+// for what was typed, in its order and highlighted where it matched, and
+// RET takes the highlighted one. The search runs in the background, so the
+// prompt does not wait on it.
+func TestASearchInTheBackgroundSuppliesTheCandidates(t *testing.T) {
+	e, scr := newTestEditor(t)
+	var calls atomic.Int32
+	search := func(input string, stop *atomic.Bool) []command.Found {
+		calls.Add(1)
+		if input == "" {
+			return nil
+		}
+		return []command.Found{
+			{Text: "second " + input, Spans: [][2]int{{7, 7 + len(input)}}},
+			{Text: "first " + input, Spans: [][2]int{{6, 6 + len(input)}}},
+		}
+	}
+	feedAfter(t, scr, 150*time.Millisecond, txt("ab"), key(t, "C-n", "RET"))
+	got, err := e.ReadString(command.ReadOpts{Prompt: "Find: ", Search: search})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "first ab" {
+		t.Errorf("took %q, want the search's second result, in its own order", got)
+	}
+	if calls.Load() < 2 {
+		t.Errorf("searched %d times, want once as the prompt opened and again as it was typed in", calls.Load())
+	}
+}
+
+// KeepOrder lists what matches in the candidates' own order, not the best
+// match first, and Preview hears of each candidate the highlight moves to.
+func TestKeepOrderAndPreview(t *testing.T) {
+	e, scr := newTestEditor(t)
+	var seen []string
+	feed(t, scr, txt("ma"), key(t, "C-n", "RET"))
+	got, err := e.ReadString(command.ReadOpts{
+		Prompt:    "Pick: ",
+		Complete:  command.CompleteFrom([]string{"xmxa", "ma", "mxa"}),
+		KeepOrder: true,
+		Preview:   func(c string) { seen = append(seen, c) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// In their order, xmxa is first, though ma matches better.
+	if got != "ma" {
+		t.Errorf("took %q, want ma: the second in the candidates' own order", got)
+	}
+	if len(seen) < 2 || seen[len(seen)-1] != "ma" || seen[len(seen)-2] != "xmxa" {
+		t.Errorf("previewed %q, want xmxa then ma", seen)
+	}
+}
+
+// Narrowing the last ranking, as each keystroke does while the list stays the
+// same, or keeping it for a keystroke that leaves the query as it was, lists
+// exactly what ranking the whole list again would: the same candidates,
+// scores and order, however the input is typed, backspaced and typed on, in
+// fzf's syntax or not, and whether or not it names a candidate outright.
+func TestNarrowingRanksAsTheWholeListWould(t *testing.T) {
+	var names []string
+	for _, a := range []string{"edit", "main", "test", "go", "win", "buf", "x"} {
+		for _, b := range []string{"or", "_test", ".go", "-line", "", "/sub"} {
+			for _, c := range []string{"", "s", "mode", "2"} {
+				names = append(names, a+b+c)
+			}
+		}
+	}
+	// fooBar outscores foobar for "foobar", on the word start at B, so the
+	// exact match is moved up past it: typed out, then followed by a space.
+	names = append(names, "fooBar", "foobar")
+	c := newCompletion(command.CompleteFrom(names), "")
+	check := func(input string) {
+		t.Helper()
+		c.refresh(input)
+		want := newCompletion(command.CompleteFrom(names), input).ranked
+		if len(c.ranked) != len(want) {
+			t.Fatalf("after typing %q: %d candidates, the whole list gives %d", input, len(c.ranked), len(want))
+		}
+		for i := range want {
+			if c.ranked[i].Candidate != want[i].Candidate || c.ranked[i].Match.Score != want[i].Match.Score {
+				t.Fatalf("after typing %q: candidate %d is %q (%d), the whole list gives %q (%d)", input, i,
+					c.ranked[i].Candidate, c.ranked[i].Match.Score, want[i].Candidate, want[i].Match.Score)
+			}
+		}
+	}
+	for _, input := range []string{"f", "foo", "foobar", "foobar ", "foobar '", "foobar", "foobar b", "foobar"} {
+		check(input)
+	}
+	pieces := []string{"e", "d", "i", "t", " ", "'", "^", "$", "!", "|", "g", "o", "_", "x", "m", "a", "n", "s"}
+	rng := rand.New(rand.NewPCG(5, 6))
+	input := ""
+	for step := 0; step < 3000; step++ {
+		switch {
+		case rng.IntN(4) == 0 && input != "":
+			input = input[:len(input)-1]
+		case rng.IntN(10) == 0:
+			input = ""
+		default:
+			input += pieces[rng.IntN(len(pieces))]
+		}
+		check(input)
+	}
+}
+
+// A query in fzf's syntax is not cut short by the prefix every candidate
+// shares: a$ over candidates all starting with a is a$, not $.
+func TestSyntaxIsNotCutByASharedPrefix(t *testing.T) {
+	c := newCompletion(command.CompleteFrom([]string{"ab", "aa", "abc"}), "")
+	c.refresh("a$")
+	if got := candidates(c); len(got) != 1 || got[0] != "aa" {
+		t.Errorf("a$ lists %q, want aa alone", got)
+	}
+}
+
+// Walking into a directory keeps its listing order whatever its path is
+// written with: Windows's backslashes, which only escape a space in fzf's
+// syntax, and spaces, which separate its words.
+func TestSharedPrefixIsCutFromAnyPath(t *testing.T) {
+	for _, dir := range []string{`C:\Users\me\sub\`, "/home/me/My Files/sub/", `C:\Program Files\sub\`} {
+		names := []string{dir, dir + "notes.txt", dir + ".hidden"}
+		c := newCompletion(command.CompleteFrom(names), dir)
+		if got := candidates(c); !slices.Equal(got, names) {
+			t.Errorf("in %s the list is %q, want it in its own order %q", dir, got, names)
+		}
+	}
+}
+
+// Cut short, a word could begin with a marker it only had in the middle:
+// x'ab less the x every candidate starts with is 'ab, which is exact.
+func TestSharedPrefixIsNotCutToAMarker(t *testing.T) {
+	c := newCompletion(command.CompleteFrom([]string{"xab", "x'ab"}), "")
+	c.refresh("x'ab")
+	if got := candidates(c); len(got) != 1 || got[0] != "x'ab" {
+		t.Errorf("x'ab lists %q, want x'ab alone", got)
+	}
+}
+
+// Whatever cutLen cuts, the candidates that match are the ones the whole
+// input matches: only the ranking may change, which is the point of it.
+// Inputs and candidates are random, from runes that are fzf's syntax, a
+// path's, and neither, the candidates sharing prefixes as a directory's do.
+func TestCuttingTheSharedPrefixKeepsTheMatches(t *testing.T) {
+	rng := rand.New(rand.NewPCG(9, 10))
+	runes := []rune(`ab '^$!|\/`)
+	pick := func(lo, hi int) string {
+		out := make([]rune, lo+rng.IntN(hi-lo+1))
+		for i := range out {
+			out[i] = runes[rng.IntN(len(runes))]
+		}
+		return string(out)
+	}
+	cut := 0
+	for range 20000 {
+		prefix := pick(0, 6)
+		cands := make([]string, 1+rng.IntN(6))
+		for i := range cands {
+			cands[i] = prefix + pick(0, 4)
+		}
+		input := prefix[:rng.IntN(len(prefix)+1)] + pick(0, 4)
+		if rng.IntN(2) == 0 {
+			input = prefix + pick(0, 3)
+		}
+		if cutLen(input, cands) > 0 {
+			cut++
+		}
+		matched := func(r []fuzzy.Ranked) []string {
+			var out []string
+			for _, x := range r {
+				out = append(out, x.Candidate)
+			}
+			slices.Sort(out)
+			return out
+		}
+		if got, want := matched(rankPastSharedPrefix(input, cands)), matched(fuzzy.Rank(input, cands)); !slices.Equal(got, want) {
+			t.Fatalf("%q cut by %d over %q matches %q; whole, it matches %q", input, cutLen(input, cands), cands, got, want)
+		}
+	}
+	if cut < 2000 {
+		t.Fatalf("only %d of 20000 inputs were cut, too few for the test to mean much", cut)
+	}
+}

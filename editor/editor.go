@@ -1,0 +1,982 @@
+// Package editor wires nem together and owns the event loop.
+//
+// It is the only package that knows about every other one: it implements
+// command.Env so commands can act, drives keymap lookup over decoded tcell
+// events, arranges windows through view, and draws through ui. Nothing imports
+// it, which is what lets every other package stay testable without a terminal.
+//
+// Two responsibilities live here and nowhere else, both because putting them
+// anywhere else means someone eventually forgets one:
+//
+//   - Cross-command bookkeeping at dispatch. Breaking the kill run, resetting
+//     the goal column and recording the last command name all happen in one
+//     place, so no command has to remember them. See dispatch.
+//   - The minibuffer. A prompt is a real text.Buffer in a real view.Window, so
+//     C-a, C-e, C-k and the kill ring work inside prompts with no extra code.
+//     See minibuffer.go.
+package editor
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/gitdiff"
+	"github.com/Borderliner/nem/highlight"
+	"github.com/Borderliner/nem/keymap"
+	"github.com/Borderliner/nem/lua"
+	"github.com/Borderliner/nem/memory"
+	"github.com/Borderliner/nem/syntax"
+	"github.com/Borderliner/nem/sysopen"
+	"github.com/Borderliner/nem/text"
+	"github.com/Borderliner/nem/ui"
+	"github.com/Borderliner/nem/view"
+	"github.com/gdamore/tcell/v2"
+)
+
+// A drifting Env breaks the build here, loudly, rather than in whichever
+// command happens to be compiled first.
+var _ command.Env = (*Editor)(nil)
+
+// ErrTooDeep reports that minibuffer recursion hit its limit. It exists so a
+// runaway Lua hook that prompts from inside a prompt fails cleanly instead of
+// growing the Go stack until the process dies.
+var ErrTooDeep = errors.New("minibuffer recursion too deep")
+
+// maxMiniDepth caps nested prompts. Emacs allows recursive minibuffers and so
+// does nem; eight is far past any legitimate depth and well short of trouble.
+const maxMiniDepth = 8
+
+// Editor is one editing session: the buffers, the windows onto them, and the
+// machinery that turns keystrokes into commands.
+//
+// It is not safe for concurrent use, deliberately. Everything — command
+// dispatch, keymap mutation and Lua execution — runs on the goroutine that
+// polls for events, which is why keymap.Map and command.KillRing need no locks.
+type Editor struct {
+	reg  *command.Registry
+	keys *keymap.Map
+
+	// buffers is most-recently-visited first, which is the order C-x b offers.
+	// names and byName are two directions of the same mapping: display names
+	// are an editor concept, because a text.Buffer has only a path.
+	buffers []*text.Buffer
+
+	// tabs is every live buffer in the order the tab strip shows them. Opening a
+	// buffer appends it, killing one removes it, and dragging a tab moves it;
+	// visiting does not, so stepping between tabs stays in one order. buffers
+	// is the visit order and changes with every command.
+	tabs   []*text.Buffer
+	names  map[*text.Buffer]string
+	byName map[string]*text.Buffer
+
+	tree   *view.Tree
+	active *view.Window
+
+	ring    *command.KillRing
+	seq     command.Seq
+	lastCmd string
+
+	echo string
+	// laterEcho is echoed when the command running is done. See
+	// echoAfterCommand.
+	laterEcho string
+
+	scr tcell.Screen
+	th  ui.Theme
+
+	// mouse is the selection a mouse drag is making, if one is. See mouse.go.
+	mouse mouseDrag
+
+	// arg collects the universal argument between C-u and the command it
+	// modifies.
+	arg argState
+
+	// events is the channel Loop reads from while it is running, and nil
+	// otherwise. Nested prompt loops must read from the SAME source: see
+	// nextEvent.
+	events <-chan tcell.Event
+
+	// pending holds the keys of a partially typed sequence, so C-x waits for
+	// its second key.
+	pending []keymap.Key
+
+	// wk is prefix-key discovery: the delay, and the panel while it shows. See
+	// whichkey.go; it describes whatever pending holds.
+	wk whichKeyState
+
+	// hl caches syntax state per buffer, so a keystroke re-lexes from the edit
+	// rather than from the top of the file. See highlight.go.
+	hl map[*text.Buffer]*highlight.Cache
+	// symbols holds the identifiers currently highlighted in each buffer,
+	// each mapped to its assigned palette color index.
+	// Ranges are derived at draw time so edits cannot leave stale overlays.
+	symbols map[*text.Buffer]map[string]int
+	// langs is the languages buffers are coloured in, nem's and the user's,
+	// read from syntaxDir; nil until the config loads, when nem's alone are.
+	// See highlight.go.
+	langs     *syntax.Set
+	syntaxDir string
+	// chosen is the language a buffer was set to with set-language, by
+	// buffer: a file's choice is also remembered for it, in mem.
+	chosen map[*text.Buffer]string
+
+	// vcs caches each buffer's git branch, because the modeline asks for it on
+	// every frame and the answer costs a walk up the directory tree. See vcs.go.
+	vcs map[*text.Buffer]branchEntry
+
+	// dired holds the listing behind every dired buffer, and diredKeys the
+	// keymap those buffers use - wdiredKeys while their names are being
+	// edited. See dired.go and wdired.go.
+	dired      map[*text.Buffer]*diredState
+	diredKeys  *keymap.Map
+	wdiredKeys *keymap.Map
+
+	// grep holds the results behind every search's buffer, and grepKeys
+	// their keymap. See grep.go.
+	grep     map[*text.Buffer]*grepState
+	grepKeys *keymap.Map
+	// fds holds the results behind fd's buffer, and fdKeys their keymap. See
+	// fd.go.
+	fds    map[*text.Buffer]*fdState
+	fdKeys *keymap.Map
+	// nextErrorBuf is the list of locations M-g n steps through: the last
+	// search's results, or the last compilation. See locations.go.
+	nextErrorBuf *text.Buffer
+
+	// compile holds the command behind every output buffer, compileKeys
+	// their keymap, and compileCommands the command last run in each
+	// directory, which the prompt offers there next time. See compile.go.
+	compile     map[*text.Buffer]*compileState
+	compileKeys *keymap.Map
+	// shells holds the process behind each shell buffer, shellKeys is their
+	// keymap, and shellPrev is the buffer M-t returns from the shell to. See
+	// shellbuf.go.
+	shells map[*text.Buffer]*shellState
+	// gutter is each file buffer's changes from HEAD, for the gutter's signs. It
+	// is read when a file is opened and saved, never while drawing. See
+	// gutter.go.
+	gutter map[*text.Buffer]gitdiff.Marks
+	// previews holds each source buffer's Markdown preview. See markdown.go.
+	previews map[*text.Buffer]*previewState
+	// previewKeys is a preview's keymap: the viewer's keys. See markdown.go.
+	previewKeys     *keymap.Map
+	shellKeys       *keymap.Map
+	shellPrev       *text.Buffer
+	compileCommands map[string]string
+	// shell runs shell commands, "" meaning /bin/sh; autoRevert reads files
+	// changed on disk into buffers without edits. See process.go, revert.go.
+	shell      string
+	autoRevert bool
+	// layout is how letters of other keyboard layouts are read as keys. See
+	// layout.go.
+	layout keymap.Layout
+
+	// raw holds the buffers of files that are not text - an mp3, a PDF -
+	// opened as text anyway. They are drawn as their bytes are stored, with
+	// no colouring and no right-to-left layout: random bytes decode to
+	// Arabic and Hebrew letters as readily as to anything, and laying those
+	// out or lexing them only cost time and memory to rearrange noise.
+	raw map[*text.Buffer]bool
+
+	// startup shows the welcome panel. It is set by the caller when nem was
+	// started with no file to open, and cleared by the first keystroke - see
+	// dismissStartup. Nothing sets it again, which is what makes the panel a
+	// once-per-session thing rather than something that reappears whenever the
+	// scratch buffer happens to be empty.
+	startup bool
+
+	// comp holds completion preferences from the config. They are applied when a
+	// panel is built rather than when a session starts, so a reload takes effect
+	// on the next frame instead of needing an open prompt to be rebuilt.
+	comp completionPrefs
+
+	// delSel makes typing and deleting replace an active region. On by default;
+	// see delsel.go. Set through SetDeleteSelection rather than directly, so the
+	// config path and the tests use the same door.
+	delSel bool
+
+	// mini is the innermost active prompt, or nil when none is. miniDepth
+	// counts nesting for the recursion guard.
+	mini      *miniState
+	miniDepth int
+
+	// miniTransparent makes Win report the text window even while a prompt is
+	// open. Only withTextWindow sets it, for search-as-you-type; see the note
+	// there.
+	miniTransparent bool
+
+	// childDispatched reports that a nested dispatch already did the
+	// cross-command bookkeeping, so an outer one must not repeat it. See
+	// dispatch.
+	childDispatched bool
+
+	// safe holds the data-safety state: the backup store, which files have been
+	// backed up this session, the autosave clock, and what each file looked like
+	// on disk when nem last touched it. See safety.go.
+	safe safety
+
+	// clip mirrors kills to the system clipboard over OSC 52. See clipboard.go.
+	clip clipboard
+
+	// paste collects a bracketed paste between its markers. See paste.go.
+	paste pasteState
+
+	// ext decides what happens to files that are not text. See external.go.
+	ext externalState
+
+	// km is keyboard macros, and lastSeqLen how many keys made the last key
+	// sequence, so the keys that end a recording can be left out of it. See
+	// kmacro.go.
+	km         kmacroState
+	lastSeqLen int
+
+	// mem is what is remembered between sessions - prompt history, recent
+	// files, places in files. It persists only once UseStateDir is called,
+	// which main does and tests do not. See memory.go.
+	mem *memory.Memory
+
+	// icons shows a file's icon beside its name in dired and in the file and
+	// buffer prompts. Off until the config's icons setting is applied: the
+	// default, "auto", guesses from the terminal and its fonts, which is not
+	// worth doing for an editor that may never load a config. See SetIcons.
+	icons bool
+
+	// frames counts what Redraw has painted, so a test can tell one redraw per
+	// paste from one per pasted character without timing anything.
+	frames int
+
+	before map[string][]func()
+	after  map[string][]func()
+
+	// host is the Lua interpreter, nil until LoadConfig runs.
+	host *lua.Host
+
+	quit bool
+
+	// signals delivers the signals that end a session from outside - the
+	// terminal closing, the system shutting down - and stopped is the one
+	// that did, once one has. See fault.go.
+	signals <-chan os.Signal
+	stopped *SignalError
+	// faults counts the bugs nem has caught itself in this session.
+	faults int
+}
+
+// New returns an editor with every built-in command registered, the default
+// bindings installed, and a single window on an empty *scratch* buffer.
+//
+// scr may be nil for tests that drive dispatch without drawing; Run requires a
+// real screen.
+func New(scr tcell.Screen) (*Editor, error) {
+	reg, err := command.NewDefaultRegistry()
+	if err != nil {
+		return nil, fmt.Errorf("registering commands: %w", err)
+	}
+	km := keymap.New()
+	if err := InstallDefaultBindings(km); err != nil {
+		return nil, fmt.Errorf("installing bindings: %w", err)
+	}
+
+	dk, err := newDiredKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing dired bindings: %w", err)
+	}
+	wk, err := newWdiredKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing wdired bindings: %w", err)
+	}
+	gk, err := newGrepKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing grep bindings: %w", err)
+	}
+	fk, err := newFdKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing fd bindings: %w", err)
+	}
+	ck, err := newCompileKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing compilation bindings: %w", err)
+	}
+	pk, err := newPreviewKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing preview bindings: %w", err)
+	}
+
+	shk, err := newShellKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing shell bindings: %w", err)
+	}
+
+	th := ui.DefaultTheme()
+	e := &Editor{
+		reg:        reg,
+		keys:       km,
+		names:      map[*text.Buffer]string{},
+		byName:     map[string]*text.Buffer{},
+		ring:       command.NewKillRing(command.DefaultCapacity),
+		th:         th,
+		scr:        scr,
+		safe:       newSafety(),
+		comp:       defaultCompletionPrefs(),
+		delSel:     true,
+		hl:         map[*text.Buffer]*highlight.Cache{},
+		symbols:    map[*text.Buffer]map[string]int{},
+		vcs:        map[*text.Buffer]branchEntry{},
+		dired:      map[*text.Buffer]*diredState{},
+		diredKeys:  dk,
+		wdiredKeys: wk,
+		grep:       map[*text.Buffer]*grepState{},
+		grepKeys:   gk,
+		fds:        map[*text.Buffer]*fdState{},
+		fdKeys:     fk,
+
+		raw:             map[*text.Buffer]bool{},
+		compile:         map[*text.Buffer]*compileState{},
+		compileKeys:     ck,
+		shells:          map[*text.Buffer]*shellState{},
+		gutter:          map[*text.Buffer]gitdiff.Marks{},
+		previews:        map[*text.Buffer]*previewState{},
+		previewKeys:     pk,
+		shellKeys:       shk,
+		compileCommands: map[string]string{},
+		autoRevert:      true,
+		before:          map[string][]func(){},
+		after:           map[string][]func(){},
+		clip:            clipboard{read: defaultClipboardReader},
+		ext:             newExternalState(),
+		mem:             &memory.Memory{},
+	}
+
+	// recover-file closes over the editor rather than going through Env. It is
+	// the only command that needs editor-specific state (the autosave store), and
+	// adding a 31st Env method to serve one command would widen an interface that
+	// sixty other commands share.
+	if err := reg.Register(command.Command{
+		Name:        "recover-file",
+		Doc:         "Replace this buffer with its autosaved contents.",
+		Interactive: true,
+		Fn:          func(command.Env) error { return e.RecoverFile(e.Buf()) },
+	}); err != nil {
+		return nil, fmt.Errorf("registering recover-file: %w", err)
+	}
+
+	if err := registerDisplayCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering display commands: %w", err)
+	}
+	if err := registerPasteCommand(e, reg); err != nil {
+		return nil, fmt.Errorf("registering %s: %w", pasteCommand, err)
+	}
+	if err := registerDiredCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering dired commands: %w", err)
+	}
+	if err := registerWdiredCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering wdired commands: %w", err)
+	}
+	if err := registerGrepCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering search result commands: %w", err)
+	}
+	if err := registerFinderCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering finder commands: %w", err)
+	}
+	if err := registerFdCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering fd commands: %w", err)
+	}
+	if err := registerLanguageCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering language commands: %w", err)
+	}
+	if err := registerProjectCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering project commands: %w", err)
+	}
+	if err := registerLocationCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering next-error commands: %w", err)
+	}
+	if err := registerCompileCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering compilation commands: %w", err)
+	}
+	if err := registerShellBufferCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering shell buffer commands: %w", err)
+	}
+	if err := registerShellCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering shell commands: %w", err)
+	}
+	if err := registerRevertCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering revert commands: %w", err)
+	}
+	if err := registerVCCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering version control commands: %w", err)
+	}
+	if err := registerMarkdownCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering markdown commands: %w", err)
+	}
+	if err := registerImenuCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering imenu commands: %w", err)
+	}
+	if err := registerBidiCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering bidi commands: %w", err)
+	}
+	if err := registerExternalCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering external commands: %w", err)
+	}
+	if err := registerKmacroCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering keyboard macro commands: %w", err)
+	}
+	if err := registerRecentCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering recentf-open: %w", err)
+	}
+
+	scratch := e.NewBuffer(ui.ScratchName)
+	e.active = view.NewWindow(scratch)
+	e.tree = view.NewTree(e.active)
+	// Told now, with the default, and again once the config has said: a
+	// config that fails to load still leaves the terminal told.
+	e.takeBidi()
+	return e, nil
+}
+
+// Registry exposes the command table so the Lua layer can register commands
+// into the same table the built-ins live in.
+func (e *Editor) Registry() *command.Registry { return e.reg }
+
+// Keymap exposes the global keymap so the Lua layer can rebind keys. Mutating
+// it is safe only from the input goroutine, which is where config loading runs.
+func (e *Editor) Keymap() *keymap.Map { return e.keys }
+
+// --- the active view -----------------------------------------------------
+
+// Win returns the minibuffer's window while a prompt is active, and the active
+// text window otherwise.
+//
+// This one substitution is what makes editing commands work inside a prompt:
+// C-a, C-e, C-k and yank all act on whatever Win reports, so a prompt needs no
+// parallel implementation of any of them.
+func (e *Editor) Win() *view.Window {
+	if e.mini != nil && !e.miniTransparent {
+		return e.mini.win
+	}
+	return e.active
+}
+
+// Buf returns the active window's buffer.
+func (e *Editor) Buf() *text.Buffer { return e.Win().Buf }
+
+// WrapWidth reports the width lines are wrapped at in the active window: its
+// text area's, or 0 when lines are not wrapped. A prompt's one line never is.
+func (e *Editor) WrapWidth() int {
+	if !e.th.Wrap || e.scr == nil || e.mini != nil && !e.miniTransparent {
+		return 0
+	}
+	w, h := e.scr.Size()
+	rect, ok := e.tree.Layout(w, h-1)[e.active]
+	if !ok {
+		return 0
+	}
+	return max(ui.TextWidth(rect, e.active, e.isListing(e.active.Buf), e.th), 1)
+}
+
+// TextHeight reports the rows of buffer text the active window shows. A prompt
+// is a single row.
+func (e *Editor) TextHeight() int {
+	if e.mini != nil && !e.miniTransparent {
+		return 1
+	}
+	if e.scr == nil {
+		return 24
+	}
+	w, h := e.scr.Size()
+	rect, ok := e.tree.Layout(w, h-1)[e.active]
+	if !ok {
+		return 1
+	}
+	if th := view.TextHeight(rect); th > 0 {
+		return th
+	}
+	return 1
+}
+
+// --- the universal argument ----------------------------------------------
+
+// Arg reports the prefix argument for the command being dispatched.
+func (e *Editor) Arg() (int, bool) { return e.arg.value() }
+
+// --- the kill ring -------------------------------------------------------
+
+// KillForward and KillBackward push onto the ring and mirror the resulting
+// entry to the system clipboard, so C-w and M-w reach other applications. See
+// noteKill for why the whole accumulated entry is sent rather than the fragment.
+func (e *Editor) KillForward(s string)  { e.noteKill(s, false) }
+func (e *Editor) KillBackward(s string) { e.noteKill(s, true) }
+
+// Yank consults the system clipboard first, so text copied in another
+// application is what C-y pastes. See takeSystemClipboard. YankPop does not: M-y
+// walks back through what the ring already holds.
+func (e *Editor) Yank() (string, error) {
+	e.takeSystemClipboard()
+	return e.ring.Yank()
+}
+
+func (e *Editor) YankPop() (string, error) { return e.ring.YankPop() }
+
+// Ring exposes the kill ring for tests and for the Lua layer.
+func (e *Editor) Ring() *command.KillRing { return e.ring }
+
+// --- command sequencing --------------------------------------------------
+
+func (e *Editor) LastCommand() string { return e.lastCmd }
+func (e *Editor) Seq() *command.Seq   { return &e.seq }
+
+// --- the echo area -------------------------------------------------------
+
+// Echo shows a message on the bottom row.
+func (e *Editor) Echo(format string, a ...any) {
+	e.echo = fmt.Sprintf(format, a...)
+}
+
+// echoAfterCommand echoes a message now, and again once the command running
+// is done, over whatever the command itself says last: a save's report of
+// what reading a definition found must outlast its "Wrote".
+func (e *Editor) echoAfterCommand(format string, a ...any) {
+	e.Echo(format, a...)
+	e.laterEcho = e.echo
+}
+
+// Message returns the current echo-area text, for tests.
+func (e *Editor) Message() string { return e.echo }
+
+// --- buffers -------------------------------------------------------------
+
+// Buffers lists live buffers, most recently visited first.
+func (e *Editor) Buffers() []*text.Buffer {
+	out := make([]*text.Buffer, len(e.buffers))
+	copy(out, e.buffers)
+	return out
+}
+
+// Tabs lists live buffers in tab-strip order, which visiting does not change.
+func (e *Editor) Tabs() []*text.Buffer {
+	out := make([]*text.Buffer, len(e.tabs))
+	copy(out, e.tabs)
+	return out
+}
+
+// BufferName returns b's display name.
+func (e *Editor) BufferName(b *text.Buffer) string { return e.names[b] }
+
+// BufferByName finds a buffer by display name.
+func (e *Editor) BufferByName(name string) (*text.Buffer, bool) {
+	b, ok := e.byName[name]
+	return b, ok
+}
+
+// NewBuffer creates a file-less buffer under name, or returns the existing one
+// if that name is taken — so list-buffers reuses its buffer instead of piling
+// up a new one per invocation.
+func (e *Editor) NewBuffer(name string) *text.Buffer {
+	if b, ok := e.byName[name]; ok {
+		return b
+	}
+	b := text.NewBuffer()
+	e.adopt(b, name)
+	return b
+}
+
+// OpenFile returns the buffer visiting path, reading it if it is not open yet.
+// A path that does not exist yields an empty buffer carrying it, which is how
+// find-file creates a new file. A directory is listed in dired, so find-file
+// and the command line can both be pointed at one.
+func (e *Editor) OpenFile(path string) (*text.Buffer, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	if fi, err := os.Stat(abs); err == nil && fi.IsDir() {
+		return e.Dired(abs)
+	}
+	for _, b := range e.buffers {
+		if b.Path() == abs {
+			e.touch(b)
+			e.rememberFile(abs)
+			return b, nil
+		}
+	}
+	if fi, err := os.Stat(abs); err == nil {
+		// Reading a named pipe or a device as a file blocks, or never ends.
+		if !fi.Mode().IsRegular() {
+			return nil, fmt.Errorf("%s is not a regular file", filepath.Base(abs))
+		}
+		elsewhere, err := e.openElsewhere(abs)
+		if err != nil {
+			return nil, err
+		}
+		if elsewhere {
+			return nil, command.ErrOpenedElsewhere
+		}
+	}
+	b, err := text.LoadFile(abs)
+	if err != nil {
+		return nil, err
+	}
+	b.SetPath(abs)
+	e.adopt(b, e.uniqueName(filepath.Base(abs)))
+	// A file that is not text, opened as text anyway, is shown as it is
+	// stored: see raw.
+	if isText, err := sysopen.IsText(abs); err == nil && !isText {
+		e.raw[b] = true
+	}
+	// Back where it was left last time, and on the recent list for next time.
+	e.restorePlace(b, abs)
+	e.rememberFile(abs)
+	e.refreshGutter(b)
+
+	// Remember what the file looked like, so a later save can tell whether
+	// anything else has touched it.
+	e.noteOnDisk(abs)
+
+	// An autosave newer than the file means a previous session died with unsaved
+	// work. Say so plainly and name the command that gets it back — a message
+	// the user cannot act on is no better than silence.
+	if newer, at := e.AutosaveAvailable(abs); newer {
+		e.Echo("Autosave from %s is newer than %s — M-x recover-file to restore it",
+			at.Format("15:04"), filepath.Base(abs))
+	}
+	return b, nil
+}
+
+// KillBuffer removes b from the live list, refusing to remove the last one.
+//
+// Any window showing b is moved to another buffer first: leaving a window
+// pointing at a dead buffer would be a nil-buffer panic on the next redraw.
+func (e *Editor) KillBuffer(b *text.Buffer) error {
+	if len(e.buffers) <= 1 {
+		return errors.New("cannot kill the last buffer")
+	}
+	// A source whose preview is showing gets its place back first, so it is
+	// removed where it stands.
+	if st := e.previews[b]; st != nil {
+		if st.shown {
+			e.hidePreview(st)
+		}
+		delete(e.previews, b)
+	}
+	// Where point was goes with the rest of what is remembered, for when the
+	// file is opened again.
+	e.rememberPlace(b)
+	e.saveMemory()
+	var repl *text.Buffer
+	for _, c := range e.buffers {
+		if c != b {
+			repl = c
+			break
+		}
+	}
+	for _, w := range e.tree.Windows() {
+		if w.Buf == b {
+			w.Visit(repl)
+		}
+	}
+	delete(e.byName, e.names[b])
+	delete(e.names, b)
+	delete(e.dired, b)
+	delete(e.grep, b)
+	delete(e.raw, b)
+	if st := e.compile[b]; st != nil && st.running {
+		st.proc.kill()
+	}
+	delete(e.compile, b)
+	if st := e.shells[b]; st != nil && st.running {
+		st.proc.kill()
+	}
+	delete(e.shells, b)
+	delete(e.gutter, b)
+	if e.shellPrev == b {
+		e.shellPrev = nil
+	}
+	if e.nextErrorBuf == b {
+		e.nextErrorBuf = nil
+	}
+	e.forgetHighlight(b)
+	delete(e.symbols, b)
+	e.forgetBranch(b)
+	for i, c := range e.buffers {
+		if c == b {
+			e.buffers = append(e.buffers[:i], e.buffers[i+1:]...)
+			break
+		}
+	}
+	for i, c := range e.tabs {
+		if c == b {
+			e.tabs = append(e.tabs[:i], e.tabs[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+// SaveBuffer writes b to disk. An empty path saves to b's own path; a non-empty
+// path saves there and adopts it.
+//
+// On failure the buffer must come out exactly as it went in: still modified,
+// and still pointing at its old path. text.Buffer.SaveAs assigns the path
+// before attempting the write, so a failed write would otherwise leave the
+// buffer claiming a file it was never written to — and the user would then
+// believe a later successful C-x C-s had saved somewhere it had not.
+// Two data-safety steps happen here, in this order and for these reasons. A
+// file something else has changed is not overwritten without asking, because
+// silently discarding an external edit is the worst thing this function could
+// do. And the file's previous contents are copied to the backup store before the
+// write, never after — a backup taken afterwards holds the new contents and
+// preserves nothing. See safety.go.
+func (e *Editor) SaveBuffer(b *text.Buffer, path string) error {
+	target := path
+	if target == "" {
+		target = b.Path()
+	}
+	if target == "" {
+		return text.ErrNoPath
+	}
+
+	if !e.confirmOverwrite(target) {
+		// Nothing written, nothing marked clean: the buffer keeps its changes
+		// and the file on disk keeps whatever the other writer put there.
+		e.Echo("%s left unchanged on disk", filepath.Base(target))
+		return nil
+	}
+
+	// A failed backup must not stop the save. The user asked to preserve their
+	// work; refusing because a copy could not be filed elsewhere would lose more
+	// than it protects.
+	e.backupBeforeWrite(target)
+
+	// What the file's .editorconfig asks of a save - no trailing whitespace,
+	// a final newline or none - is done to the buffer before it is written,
+	// so the screen shows what the file holds. See indent.go.
+	e.tidyForSave(b, target)
+
+	if path == "" {
+		if err := b.Save(); err != nil {
+			return err
+		}
+		e.afterSave(target)
+		e.refreshGutter(b)
+		e.refreshPreviews(b)
+		return nil
+	}
+
+	// No path rollback here: text.SaveAs adopts the new path only after the
+	// write succeeds, so a failure leaves the buffer untouched.
+	if err := b.SaveAs(path); err != nil {
+		return err
+	}
+	if name := e.uniqueNameFor(b, filepath.Base(path)); name != "" {
+		delete(e.byName, e.names[b])
+		e.names[b] = name
+		e.byName[name] = b
+	}
+	// A language chosen for the buffer goes with it to its new name.
+	if name := e.chosen[b]; name != "" {
+		e.mem.SetLanguage(b.Path(), name)
+	}
+	// The buffer just became a .go file, or a .lua one. Lex it as what it is
+	// now rather than as what it was when it had no name.
+	e.retuneHighlight(b)
+	// The old reading described a different file, and possibly a different
+	// repository: saving into one moves the buffer onto its branch.
+	e.forgetBranch(b)
+	e.afterSave(target)
+	e.rememberFile(target)
+	e.refreshGutter(b)
+	e.refreshPreviews(b)
+	return nil
+}
+
+// adopt registers b as a live buffer under name, most recently visited first.
+func (e *Editor) adopt(b *text.Buffer, name string) {
+	e.buffers = append([]*text.Buffer{b}, e.buffers...)
+	e.tabs = append(e.tabs, b)
+	e.names[b] = name
+	e.byName[name] = b
+}
+
+// touch moves b to the front of the visited order. A buffer that is not in the
+// list, such as the minibuffer's, is left alone.
+//
+// It rotates in place: dispatch calls it after every command, and the buffer is
+// almost always at the front already.
+func (e *Editor) touch(b *text.Buffer) {
+	for i, c := range e.buffers {
+		if c == b {
+			copy(e.buffers[1:i+1], e.buffers[:i])
+			e.buffers[0] = b
+			return
+		}
+	}
+}
+
+// uniqueName disambiguates a display name the way emacs does, so two files
+// with the same basename in different directories remain distinguishable.
+func (e *Editor) uniqueName(base string) string {
+	if base == "" {
+		base = ui.ScratchName
+	}
+	if _, taken := e.byName[base]; !taken {
+		return base
+	}
+	for n := 2; ; n++ {
+		cand := fmt.Sprintf("%s<%d>", base, n)
+		if _, taken := e.byName[cand]; !taken {
+			return cand
+		}
+	}
+}
+
+// uniqueNameFor is uniqueName, except that b keeping its current name is not a
+// collision with itself. It returns "" when no rename is needed.
+func (e *Editor) uniqueNameFor(b *text.Buffer, base string) string {
+	if cur, ok := e.names[b]; ok && cur == base {
+		return ""
+	}
+	if holder, taken := e.byName[base]; taken && holder == b {
+		return ""
+	}
+	return e.uniqueName(base)
+}
+
+// --- windows -------------------------------------------------------------
+
+// SplitWindow splits the active window and selects the new half.
+func (e *Editor) SplitWindow(vertical bool) error {
+	w, err := e.tree.Split(e.active, vertical)
+	if err != nil {
+		return err
+	}
+	e.active = w
+	return nil
+}
+
+// OtherWindow moves the selection n windows along the cycle, wrapping.
+func (e *Editor) OtherWindow(n int) {
+	ws := e.tree.Windows()
+	if len(ws) < 2 {
+		return
+	}
+	cur := 0
+	for i, w := range ws {
+		if w == e.active {
+			cur = i
+			break
+		}
+	}
+	i := (cur + n) % len(ws)
+	if i < 0 {
+		i += len(ws)
+	}
+	e.active = ws[i]
+}
+
+// DeleteWindow removes the active window, refusing to remove the sole one.
+func (e *Editor) DeleteWindow() error {
+	if err := e.tree.Delete(e.active); err != nil {
+		return err
+	}
+	e.active = e.tree.Windows()[0]
+	return nil
+}
+
+// DeleteOtherWindows makes the active window fill the frame.
+func (e *Editor) DeleteOtherWindows() { e.tree.DeleteOthers(e.active) }
+
+// Tree exposes the window tree for tests.
+func (e *Editor) Tree() *view.Tree { return e.tree }
+
+// Active returns the selected window.
+func (e *Editor) Active() *view.Window { return e.active }
+
+// --- commands and bindings -----------------------------------------------
+
+// Run invokes another command by name. This is M-x's mechanism and Lua's
+// nem.run.
+//
+// It routes through dispatch so the invoked command gets the same bookkeeping
+// as a keystroke would — otherwise M-x kill-line would leave the kill run open
+// and fuse with the next kill.
+func (e *Editor) Run(name string) error {
+	if _, ok := e.reg.Lookup(name); !ok {
+		return fmt.Errorf("%w: %q", command.ErrUnknownCommand, name)
+	}
+	return e.dispatch(name)
+}
+
+// CommandNames lists interactive command names, sorted, for M-x completion.
+func (e *Editor) CommandNames() []string { return e.reg.Names() }
+
+// Bindings maps key sequences to command names, for describe-bindings. In a
+// buffer with a mode of its own - a dired listing - the mode's keys are
+// included and win, since they are what those keys do there.
+func (e *Editor) Bindings() map[string]string {
+	out := e.keys.Bindings()
+	if m := e.modeKeys(e.active.Buf); m != nil {
+		for spec, cmd := range m.Bindings() {
+			out[spec] = cmd
+		}
+	}
+	return out
+}
+
+// Where lists the sequences bound to a command, for describe-key. A global key
+// the current mode has taken over is left out: in dired, C-n no longer runs
+// next-line.
+func (e *Editor) Where(cmd string) []string {
+	m := e.modeKeys(e.active.Buf)
+	if m == nil {
+		return e.keys.Where(cmd)
+	}
+	out := m.Where(cmd)
+	for _, spec := range e.keys.Where(cmd) {
+		if seq, err := keymap.ParseSpec(spec); err == nil && m.Lookup(seq).Kind != keymap.Undefined {
+			continue
+		}
+		out = append(out, spec)
+	}
+	return out
+}
+
+// --- session -------------------------------------------------------------
+
+// Quit ends the session, refusing without force while any buffer is modified.
+func (e *Editor) Quit(force bool) error {
+	if !force {
+		var dirty []string
+		for _, b := range e.buffers {
+			if b.Modified() {
+				dirty = append(dirty, e.names[b])
+			}
+		}
+		if len(dirty) > 0 {
+			sort.Strings(dirty)
+			return fmt.Errorf("unsaved changes in %v", dirty)
+		}
+	}
+	e.quit = true
+	return nil
+}
+
+// Quitting reports whether the session has been asked to end, for tests.
+func (e *Editor) Quitting() bool { return e.quit }
+
+// ShowStartup asks for the welcome panel on the next frame.
+//
+// The caller decides rather than the editor, because only the caller knows
+// whether a file was named on the command line - the editor sees an empty
+// *scratch* either way, and showing a welcome over a file someone asked for
+// would be an interruption rather than a greeting.
+func (e *Editor) ShowStartup() { e.startup = true }
+
+// dismissStartup hides the welcome panel.
+//
+// It never swallows the keystroke that dismisses it: the key goes on to be
+// resolved normally, so the panel costs nothing more than the glance it was
+// there to be worth.
+func (e *Editor) dismissStartup() { e.startup = false }

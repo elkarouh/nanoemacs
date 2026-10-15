@@ -12,8 +12,11 @@ build:
 
 rebuild: clean build
 
-PREFIX ?= /usr/local
-BINDIR ?= $(PREFIX)/bin
+# Install beside the nem already on PATH, so an update replaces it in place;
+# with none there, into $(PREFIX)/bin. Set BINDIR to choose another directory.
+PREFIX ?= $(HOME)/.local
+CURRENT_NEM := $(shell command -v $(BINARY) 2>/dev/null)
+BINDIR ?= $(if $(CURRENT_NEM),$(dir $(CURRENT_NEM)),$(PREFIX)/bin)
 
 clean:
 	rm -f $(BINARY)

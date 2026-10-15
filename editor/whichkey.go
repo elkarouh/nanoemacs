@@ -167,13 +167,13 @@ func (e *Editor) buildWhichKey(cs []keymap.Continuation) (*whichKeyView, bool) {
 	sw, sh := e.scr.Size()
 	bottom := e.comp.style == completionBottom
 
-	// At the bottom the rows take the full width, and at most half the height
+	// At the bottom the rows take the full width, and at most two thirds of the height
 	// so the buffer stays in view; the windows always keep a text row and a
 	// modeline. In the popup the border costs two of each, and the echo row is
 	// never covered.
 	width, maxRows := sw-2, sh-1-2
 	if bottom {
-		width, maxRows = sw, min(sh-1-2, max(3, sh/2))
+		width, maxRows = sw, min(sh-1-2, max(3, sh*2/3))
 	}
 
 	cells := whichKeyCells(cs)

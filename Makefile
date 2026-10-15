@@ -3,7 +3,7 @@ PKG := ./cmd/nem
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build rebuild clean test vet fmt
+.PHONY: all build rebuild clean install test vet fmt
 
 all: build
 
@@ -11,6 +11,9 @@ build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) $(PKG)
 
 rebuild: clean build
+
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
 
 clean:
 	rm -f $(BINARY)
@@ -23,8 +26,7 @@ vet:
 
 fmt:
 	go fmt ./...
-install:
-	hgit pull
-	make
-	cp nem $(which nem)
+install: build
+	mkdir -p $(DESTDIR)$(BINDIR)
+	cp $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
 

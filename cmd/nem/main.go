@@ -3,10 +3,11 @@
 //
 // Usage:
 //
-//	nem [file...]
+//	nem [[+LINE[:COLUMN]] file...]
 //
-// Each named file is opened into a buffer; the first is shown. With no
-// arguments nem starts in *scratch*.
+// Each named file is opened into a buffer; the first is shown. A +LINE
+// argument, as in emacs, opens the file after it at that line (and column).
+// With no arguments nem starts in *scratch*.
 package main
 
 import (
@@ -32,7 +33,7 @@ var version = "dev"
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [file...]\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [[+LINE[:COLUMN]] file...]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -42,7 +43,14 @@ func main() {
 		return
 	}
 
-	if err := run(flag.Args()); err != nil {
+	targets, err := parseTargets(flag.Args())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nem:", err)
+		flag.Usage()
+		os.Exit(2)
+	}
+
+	if err := run(targets); err != nil {
 		fmt.Fprintln(os.Stderr, "nem:", err)
 		// Ended by a signal, nem exits as the signal would have ended it, so
 		// a shell or a service manager reads the same status.
@@ -64,7 +72,7 @@ func rescue(e *editor.Editor) (saved []string) {
 	return saved
 }
 
-func run(paths []string) (err error) {
+func run(targets []target) (err error) {
 	scr, err := ui.NewScreen()
 	if err != nil {
 		return fmt.Errorf("opening terminal: %w", err)
@@ -124,18 +132,19 @@ func run(paths []string) (err error) {
 
 	// Only the command line knows whether a file was asked for; the editor sees
 	// an empty *scratch* either way.
-	if len(paths) == 0 {
+	if len(targets) == 0 {
 		e.ShowStartup()
 	}
 
-	for i, path := range paths {
-		b, err := e.OpenFile(path)
+	for i, t := range targets {
+		b, err := e.OpenFile(t.Path)
 		if errors.Is(err, command.ErrOpenedElsewhere) {
 			continue // handed to the system's app; nothing to show here
 		}
 		if err != nil {
-			return fmt.Errorf("opening %s: %w", path, err)
+			return fmt.Errorf("opening %s: %w", t.Path, err)
 		}
+		t.place(b)
 		if i == 0 {
 			e.Active().Visit(b)
 		}

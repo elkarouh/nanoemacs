@@ -138,7 +138,7 @@ func TestEditingUpdatesTheColours(t *testing.T) {
 	e.Active().Pt = b.End()
 	e.Redraw()
 
-	if anyColourOnRow(t, scr, 0) {
+	if anyColourOnRow(t, scr, tabRow(e)) {
 		t.Fatal("setup: a bare identifier should not be coloured")
 	}
 
@@ -147,7 +147,7 @@ func TestEditingUpdatesTheColours(t *testing.T) {
 	press(t, e, "/", "/")
 	e.Redraw()
 
-	if !anyColourOnRow(t, scr, 0) {
+	if !anyColourOnRow(t, scr, tabRow(e)) {
 		t.Error("typing // did not colour the line as a comment")
 	}
 }

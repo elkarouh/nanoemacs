@@ -274,8 +274,8 @@ func TestNonTextOpenedAsTextIsDrawnAsStored(t *testing.T) {
 	if got := e.FileType(b); got != "binary" {
 		t.Errorf("file type %q, want binary", got)
 	}
-	if !strings.Contains(screenRow(t, scr, 0), "سلام") {
-		t.Errorf("row %q; want the letters in the order they are stored", screenRow(t, scr, 0))
+	if !strings.Contains(screenRow(t, scr, tabRow(e)), "سلام") {
+		t.Errorf("row %q; want the letters in the order they are stored", screenRow(t, scr, tabRow(e)))
 	}
 
 	tb, err := e.OpenFile(txtFile)
@@ -284,7 +284,7 @@ func TestNonTextOpenedAsTextIsDrawnAsStored(t *testing.T) {
 	}
 	e.active.Visit(tb)
 	e.Redraw()
-	if e.FileType(tb) == "binary" || strings.Contains(screenRow(t, scr, 0), "سلام") {
-		t.Errorf("text file: type %q, row %q; want it laid out right to left", e.FileType(tb), screenRow(t, scr, 0))
+	if e.FileType(tb) == "binary" || strings.Contains(screenRow(t, scr, tabRow(e)), "سلام") {
+		t.Errorf("text file: type %q, row %q; want it laid out right to left", e.FileType(tb), screenRow(t, scr, tabRow(e)))
 	}
 }

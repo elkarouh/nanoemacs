@@ -23,3 +23,8 @@ vet:
 
 fmt:
 	go fmt ./...
+install:
+	hgit pull
+	make
+	cp nem $(which nem)
+

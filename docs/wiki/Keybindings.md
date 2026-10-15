@@ -27,8 +27,8 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `M-b` | `backward-word` | Move point to the start of the previous word. |
 | `C-a` `<home>` | `move-beginning-of-line` | Move point to the start of the line. |
 | `C-e` `<end>` | `move-end-of-line` | Move point to the end of the line. |
-| `M-<` | `beginning-of-buffer` | Move point to the start of the buffer. |
-| `M->` | `end-of-buffer` | Move point to the end of the buffer. |
+| `M-<` `C-<home>` | `beginning-of-buffer` | Move point to the start of the buffer. |
+| `M->` `C-<end>` | `end-of-buffer` | Move point to the end of the buffer. |
 | `C-v` `<pgdn>` | `scroll-up-command` | Move forward one screenful. |
 | `M-v` `<pgup>` | `scroll-down-command` | Move backward one screenful. |
 | `M-g M-g` | `goto-line` | Move point to the start of a numbered line. |
@@ -46,7 +46,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-k` | `kill-line` | Kill to the end of the line, or the newline if already there. |
 | `C-o` | `open-line` | Insert a newline after point, leaving point in place. |
 | `C-t` | `transpose-chars` | Transpose the characters around point. |
-| `M-t` | `shell-toggle` | Go to the `*shell*` buffer, or back to the buffer it was entered from. |
+| `M-t` | `shell-toggle` | Go to the shell buffer, or back to the buffer it was entered from. |
 | `RET` | `newline` | Insert a newline, copying the current line's indentation. |
 | `TAB` | `indent-for-tab-command` | Indent at point, or the region's lines, with the file's tabs or spaces. |
 | `M-u` | `upcase-word` | Convert the following word to upper case. |
@@ -68,10 +68,6 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `M-=` | `count-words` | Count the lines, words and characters in the region, or the buffer. |
 | `C-x =` | `what-cursor-position` | Describe the character at point and where point is. |
 | `C-.` | `symbol-overlay` | Highlight the symbol at point throughout the buffer. |
-| `n` / `p` | `symbol-overlay-next` / `-prev` | With point on a highlighted symbol, jump to its next / previous occurrence (wraps). Elsewhere they insert normally. |
-| `<` / `>` | `symbol-overlay-first` / `-last` | On a highlighted symbol: jump to its first / last occurrence. |
-| `r` | `symbol-overlay-rename` | On a highlighted symbol: rename all its occurrences (one undo step). |
-| `o` | `symbol-overlay-occur` | On a highlighted symbol: list its lines in `*Occur*`. |
 
 ### Indentation and regions
 
@@ -127,9 +123,10 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-r` | `isearch-backward` | Search incrementally backward as you type. |
 | `M-%` | `query-replace` | Replace occurrences of a string, asking about each one. |
 | `M-s o` | `occur` | List the lines of this buffer that match a regexp, each leading to its line. |
-| `M-s r` | `rg` | Search a directory's files as the pattern is typed, ripgrep's options and all; C-u asks where. |
-| `M-s f` | `fzf` | Open a file anywhere under a directory, found by a few letters of its path; C-u asks where. |
+| `M-s r` `M-s g` | `rg` | Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where. |
+| `M-s f` | `fzf` | Open a file under the buffer's directory, found by a few letters of its path; C-u asks where. |
 | `M-s l` | `fzf-lines` | Go to a line of the buffer, found by a few letters of it. |
+| `M-s p` | `project-find-regexp` | Search the current project's files for a regexp, listing the matching lines. |
 
 ### Files
 
@@ -142,11 +139,25 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-x s` | `save-some-buffers` | Offer to save each modified buffer. |
 | `C-x x g` | `revert-buffer` | Read the buffer's file again, throwing away any edits after asking; a listing is read again, a compilation run again. |
 
+### Version control on the file being edited
+
+| Key | Command | Does |
+|---|---|---|
+| `C-x v v` | `vc-next-action` | Save the file, stage it and commit it, with the message typed on the prompt. |
+
+### The Markdown preview
+
+| Key | Command | Does |
+|---|---|---|
+| `C-x x m` | `markdown-preview` | Show the buffer rendered as Markdown, in its place, as mdcat renders it. |
+
 ### Buffers
 
 | Key | Command | Does |
 |---|---|---|
 | `C-x b` | `switch-to-buffer` | Display another buffer, creating it if the name is new. |
+| `M-.` `C-x <right>` | `next-buffer` | Show the next buffer in the tab strip in the current window. |
+| `M-,` `C-x <left>` | `previous-buffer` | Show the previous buffer in the tab strip in the current window. |
 | `C-x k` | `kill-buffer` | Kill the current buffer, confirming if it is modified. |
 | `C-x C-b` | `list-buffers` | Display a listing of every live buffer. |
 | `C-x d` | `dired` | List a directory, to browse it and act on its files. |
@@ -234,8 +245,10 @@ In a directory listing: `C-x d`, `C-x C-j`, or any directory opened as a file. T
 | `d` | `dired-flag-file-deletion` | Flag the file at point for deletion by x, and move down. |
 | `x` | `dired-do-flagged-delete` | Delete the files flagged with d, after asking. |
 | `D` | `dired-do-delete` | Delete the marked files, or the file at point, after asking. |
-| `R` | `dired-do-rename` | Rename the file at point, or move the marked files into a directory. |
+| `R` | `dired-rg` | Search the files under this dired buffer's directory with rg, as the pattern is typed. |
+| `M` | `dired-do-rename` | Rename the file at point, or move the marked files into a directory. |
 | `C` | `dired-do-copy` | Copy the file at point, or the marked files into a directory. |
+| `F` | `dired-fd` | Run fd, with the arguments typed, in the directory of this dired buffer, and list the files it finds. |
 | `+` | `dired-create-directory` | Create a directory, and any missing parents. |
 | `g` | `dired-revert` | Read the directory again. |
 | `(` | `dired-toggle-details` | Show or hide permissions, sizes and dates. |
@@ -312,8 +325,8 @@ While candidates are listed, the keys that page and jump through a buffer move t
 |---|---|
 | `C-v` `<pgdn>` | Next page of candidates. |
 | `M-v` `<pgup>` | Previous page of candidates. |
-| `M-<` | First candidate. |
-| `M->` | Last candidate. |
+| `M-<` `C-<home>` | First candidate. |
+| `M->` `C-<end>` | Last candidate. |
 
 The list narrows as you type, fuzzily - `fwc` finds `forward-char` - and reads fzf's syntax: several words must all match, `'abc` is exact, `^abc` a prefix, `abc$` a suffix, `!abc` leaves out what has it, and `a | b` matches either. [Searching](Searching#narrowing-a-list-fzfs-syntax) has the whole of it.
 

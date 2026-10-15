@@ -16,7 +16,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `backward-paragraph` | `M-{` | Move to the start of the paragraph, ARG paragraphs back. |
 | `backward-sexp` | `C-M-b` | Move back over the previous balanced expression, ARG times. |
 | `backward-word` | `M-b` | Move point to the start of the previous word. |
-| `beginning-of-buffer` | `M-<` | Move point to the start of the buffer. |
+| `beginning-of-buffer` | `M-<` `C-<home>` | Move point to the start of the buffer. |
 | `bracketed-paste` |  | Insert text pasted through the terminal, verbatim. *(Not offered by `M-x`.)* |
 | `capitalize-word` | `M-c` | Capitalize the following word. |
 | `comment-dwim` | `M-;` | Comment or uncomment the lines of the region, or the current line. |
@@ -43,7 +43,8 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `dired-do-delete` | dired: `D` | Delete the marked files, or the file at point, after asking. |
 | `dired-do-flagged-delete` | dired: `x` | Delete the files flagged with d, after asking. |
 | `dired-do-open` | dired: `E` | Open the marked files, or the file at point, with the system app. |
-| `dired-do-rename` | dired: `R` | Rename the file at point, or move the marked files into a directory. |
+| `dired-do-rename` | dired: `M` | Rename the file at point, or move the marked files into a directory. |
+| `dired-fd` | dired: `F` | Run fd, with the arguments typed, in the directory of this dired buffer, and list the files it finds. |
 | `dired-find-file` | dired: `e` `f` `RET` `M-<down>` | Visit the file at point, or list the directory at point. |
 | `dired-find-file-other-window` | dired: `o` | Visit the file at point in another window. |
 | `dired-first-file` | dired: `M-<` | Move to the first file in the listing, below the parent entry. |
@@ -56,6 +57,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `dired-next-line` | dired: `n` `C-n` `SPC` `<down>` | Move to the next file, ARG files down. |
 | `dired-previous-line` | dired: `p` `C-p` `<up>` | Move to the previous file, ARG files up. |
 | `dired-revert` | dired: `g` | Read the directory again. |
+| `dired-rg` | dired: `R` | Search the files under this dired buffer's directory with rg, as the pattern is typed. |
 | `dired-sort-toggle` | dired: `s` | Sort by name, then by time, then by size. |
 | `dired-toggle-details` | dired: `(` | Show or hide permissions, sizes and dates. |
 | `dired-toggle-hidden` | dired: `.` | Show or hide dotfiles. |
@@ -67,16 +69,17 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `downcase-region` | `C-x C-l` | Convert the region to lower case. |
 | `downcase-word` | `M-l` | Convert the following word to lower case. |
 | `edit-language` |  | Edit how a language is coloured, in its .syntax file beside init.lua; saving it recolours every buffer. |
-| `end-of-buffer` | `M->` | Move point to the end of the buffer. |
+| `end-of-buffer` | `M->` `C-<end>` | Move point to the end of the buffer. |
 | `exchange-point-and-mark` | `C-x C-x` | Put point where the mark is, and the mark where point was. |
 | `execute-extended-command` | `M-x` | Read a command name in the minibuffer and run it. |
+| `fd-find-file` |  | Visit the file at point in the fd results, or list the directory there in dired. |
 | `fill-paragraph` | `M-q` | Re-wrap the paragraph at point to the fill column. |
 | `find-file` | `C-x C-f` | Visit a file in the current window, creating it if absent. |
 | `forward-char` | `C-f` | Move point one grapheme forward. |
 | `forward-paragraph` | `M-}` | Move to the end of the paragraph, ARG paragraphs forward. |
 | `forward-sexp` | `C-M-f` | Move over the next balanced expression, ARG times. |
 | `forward-word` | `M-f` | Move point to the end of the next word. |
-| `fzf` | `M-s f` | Open a file anywhere under a directory, found by a few letters of its path; C-u asks where. |
+| `fzf` | `M-s f` | Open a file under the buffer's directory, found by a few letters of its path; C-u asks where. |
 | `fzf-lines` | `M-s l` | Go to a line of the buffer, found by a few letters of it. |
 | `goto-line` | `M-g M-g` | Move point to the start of a numbered line. |
 | `grep-display-match` | grep: `o` | Show the match at point in the other window, staying here. |
@@ -111,24 +114,28 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `left-char` | `<left>` | Move one character to the left: backward, or forward in a line that reads right to left. |
 | `list-buffers` | `C-x C-b` | Display a listing of every live buffer. |
 | `mark-whole-buffer` | `C-x h` | Put point at the start of the buffer and the mark at the end. |
+| `markdown-preview` | `C-x x m` | Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again. |
 | `move-beginning-of-line` | `C-a` `<home>` | Move point to the start of the line. |
 | `move-end-of-line` | `C-e` `<end>` | Move point to the end of the line. |
 | `move-lines-down` | `M-<down>` | Move the region's lines, or the current line, one line down. |
 | `move-lines-up` | `M-<up>` | Move the region's lines, or the current line, one line up. |
 | `newline` | `RET` | Insert a newline, copying the current line's indentation. |
+| `next-buffer` | `M-.` `C-x <right>` | Show the next buffer in the tab strip in the current window. |
 | `next-error` | `` C-x ` `` `M-g n` `M-g M-n` | Go to the next match of the last search, or error of the last compilation, ARG on. |
 | `next-line` | `C-n` `<down>` | Move point down one line, keeping the goal column. |
 | `occur` | `M-s o` | List the lines of this buffer that match a regexp, each leading to its line. |
 | `open-externally` |  | Open this buffer's file, or the directory a listing shows, with the system app. |
 | `open-line` | `C-o` | Insert a newline after point, leaving point in place. |
 | `other-window` | `C-x o` | Select another window, ARG windows forward. |
+| `preview-close` |  | Close the Markdown preview and show the buffer it renders in its place. |
+| `previous-buffer` | `M-,` `C-x <left>` | Show the previous buffer in the tab strip in the current window. |
 | `previous-error` | `M-g p` `M-g M-p` | Go to the previous match of the last search, or error of the last compilation, ARG back. |
 | `previous-line` | `C-p` `<up>` | Move point up one line, keeping the goal column. |
 | `project-compile` | `C-x p c` | Run a compilation from the top of the current project. |
 | `project-dired` | `C-x p D` | List the current project's top directory. |
 | `project-find-dir` | `C-x p d` | List a directory of the current project, found by name. |
 | `project-find-file` | `C-x p f` | Open a file in the current project, found by name. |
-| `project-find-regexp` | `C-x p g` | Search the current project's files for a regexp, listing the matching lines. |
+| `project-find-regexp` | `M-s p` `C-x p g` | Search the current project's files for a regexp, listing the matching lines. |
 | `project-forget-project` |  | Take a project off the known projects. |
 | `project-kill-buffers` | `C-x p k` | Kill every buffer of the current project, after asking. |
 | `project-query-replace` | `C-x p r` | Replace text across the current project's files, asking at each match. |
@@ -149,7 +156,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `replace-string` |  | Replace a string everywhere after point, or in the region, without asking. |
 | `reverse-region` |  | Reverse the order of the region's lines. |
 | `revert-buffer` | `C-x x g` | Read the buffer's file again, throwing away any edits after asking; a listing is read again, a compilation run again. |
-| `rg` | `M-s r` | Search a directory's files as the pattern is typed, ripgrep's options and all; C-u asks where. |
+| `rg` | `M-s g` `M-s r` | Search the files under the buffer's directory as the pattern is typed, ripgrep's options and all; C-u asks where. |
 | `right-char` | `<right>` | Move one character to the right: forward, or backward in a line that reads right to left. |
 | `save-buffer` | `C-x C-s` | Save the current buffer, prompting for a name if it has none. |
 | `save-buffers-kill-terminal` | `C-x C-c` | Offer to save modified buffers, then exit. |
@@ -159,26 +166,34 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `self-insert-command` |  | Insert the character just typed. |
 | `set-language` |  | Colour this buffer as another language, remembered for its file; its own language undoes it. |
 | `set-mark-command` | `C-@` | Set the mark where point is. |
+| `shell-beginning-of-line` |  | Move to the start of the input on the prompt's line, or of the line elsewhere. |
 | `shell-command` | `M-!` | Run a shell command and show its output; with C-u, insert it at point. A command ending in & runs in the background. |
 | `shell-command-on-region` | `M-\|` | Run a shell command with the region as its input and show its output; with C-u, replace the region with it. |
+| `shell-delete-or-eof` |  | Delete the character after point, or at an empty prompt end the shell's input. |
+| `shell-interrupt` |  | Interrupt what the shell is running, as C-c does in a terminal. |
+| `shell-next-input` |  | Replace the input with the one sent after it. |
+| `shell-previous-input` |  | Replace the input with the one sent before it. |
+| `shell-send-input` |  | Send the line being typed to the shell. |
+| `shell-toggle` | `M-t` | Go to the shell buffer, or back to the buffer it was entered from. |
 | `sort-lines` |  | Sort the region's lines; with a prefix argument, in reverse. |
 | `split-window-below` | `C-x 2` | Split the current window, stacking the new one beneath it. |
 | `split-window-right` | `C-x 3` | Split the current window, placing the new one beside it. |
 | `switch-to-buffer` | `C-x b` | Display another buffer, creating it if the name is new. |
 | `symbol-overlay` | `C-.` | Highlight the symbol at point throughout the buffer. |
-| `symbol-overlay-next` | `n` on a highlighted symbol | Move to the next occurrence of the highlighted symbol at point. |
-| `symbol-overlay-prev` | `p` on a highlighted symbol | Move to the previous occurrence of the highlighted symbol at point. |
-| `symbol-overlay-last` | `>` on a highlighted symbol | Move to the last occurrence of the highlighted symbol at point. |
-| `symbol-overlay-first` | `<` on a highlighted symbol | Move to the first occurrence of the highlighted symbol at point. |
-| `symbol-overlay-rename` | `r` on a highlighted symbol | Rename every occurrence of the highlighted symbol at point. |
-| `symbol-overlay-occur` | `o` on a highlighted symbol | List the lines containing the highlighted symbol at point. |
+| `symbol-overlay-first` |  | Move to the first occurrence of the highlighted symbol at point. |
+| `symbol-overlay-last` |  | Move to the last occurrence of the highlighted symbol at point. |
+| `symbol-overlay-next` |  | Move to the next occurrence of the highlighted symbol at point. |
+| `symbol-overlay-occur` |  | List the lines containing the highlighted symbol at point. |
+| `symbol-overlay-prev` |  | Move to the previous occurrence of the highlighted symbol at point. |
+| `symbol-overlay-rename` |  | Rename every occurrence of the highlighted symbol at point. |
 | `toggle-line-numbers` | `C-x n` | Show or hide the line-number gutter. |
 | `toggle-line-wrap` | `C-x x t` | Wrap lines wider than the window, or cut them off at its edge. |
 | `transpose-chars` | `C-t` | Transpose the characters around point. |
-| `transpose-words` | | Transpose the words around point. |
+| `transpose-words` |  | Transpose the words around point. |
 | `undo` | `C-_` `C-x u` | Undo the most recent change. |
 | `upcase-region` | `C-x C-u` | Convert the region to upper case. |
 | `upcase-word` | `M-u` | Convert the following word to upper case. |
+| `vc-next-action` | `C-x v v` | Save the file, stage it and commit it, with the message typed on the prompt. The commit holds this file alone, as C-x v v does in emacs. |
 | `wdired-abort-changes` | wdired: `C-c C-k` | Throw the edited names away, and return to the listing. |
 | `wdired-beginning-of-line` | wdired: `C-a` `<home>` | Move to the start of the file name, or of the line off an entry. |
 | `wdired-change-to-wdired-mode` | dired: `C-x C-q` | Edit the file names in this listing as text, to rename the files. |
@@ -191,17 +206,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-175 commands in all.
-
-## Shell buffer
-
-`M-t` opens `*shell*`, your `$SHELL` (or the `shell` setting) running interactively in an ordinary buffer, and `M-t` again returns to the buffer you came from. It runs on pipes, not a terminal, so programs that need one (vim, htop, less, password prompts) do not work in it.
-
-| Command | Key (in `*shell*`) | Does |
-| --- | --- | --- |
-| `shell-toggle` | `M-t` | Go to the shell, or back. |
-| `shell-send-input` | `RET` | Send the line being typed. |
-| `shell-interrupt` | `C-c C-c` | Interrupt what the shell is running. |
-| `shell-delete-or-eof` | `C-d` | Delete a character, or at an empty prompt end the shell's input. |
-| `shell-beginning-of-line` | `C-a` | Start of the input on the prompt's line. |
-| `shell-previous-input` / `shell-next-input` | `M-p` / `M-n` | Step through inputs sent. |
+196 commands in all.

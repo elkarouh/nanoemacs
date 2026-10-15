@@ -1,4 +1,4 @@
 # Built binary at the repo root
 /nem
-# Local backups, not part of the source
-backup/
+# Local backup folder at the repo root, not part of the source
+/backups/

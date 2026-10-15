@@ -143,6 +143,10 @@ type Editor struct {
 	// fd.go.
 	fds    map[*text.Buffer]*fdState
 	fdKeys *keymap.Map
+	// rgs holds the results behind dired R's buffer, and rgKeys their keymap.
+	// See rgrun.go.
+	rgs    map[*text.Buffer]*rgState
+	rgKeys *keymap.Map
 	// nextErrorBuf is the list of locations M-g n steps through: the last
 	// search's results, or the last compilation. See locations.go.
 	nextErrorBuf *text.Buffer
@@ -297,6 +301,10 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("installing fd bindings: %w", err)
 	}
+	rk, err := newRgKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing rg bindings: %w", err)
+	}
 	ck, err := newCompileKeymap()
 	if err != nil {
 		return nil, fmt.Errorf("installing compilation bindings: %w", err)
@@ -333,6 +341,8 @@ func New(scr tcell.Screen) (*Editor, error) {
 		grepKeys:   gk,
 		fds:        map[*text.Buffer]*fdState{},
 		fdKeys:     fk,
+		rgs:        map[*text.Buffer]*rgState{},
+		rgKeys:     rk,
 
 		raw:             map[*text.Buffer]bool{},
 		compile:         map[*text.Buffer]*compileState{},

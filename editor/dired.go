@@ -134,6 +134,9 @@ func (e *Editor) modeKeys(b *text.Buffer) *keymap.Map {
 	if e.fdOf(b) != nil {
 		return e.fdKeys
 	}
+	if e.rgOf(b) != nil {
+		return e.rgKeys
+	}
 	if e.compileOf(b) != nil {
 		return e.compileKeys
 	}

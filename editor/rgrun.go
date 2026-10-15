@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/keymap"
+	"github.com/Borderliner/nem/text"
 )
 
 // rgRunTimeout is how long rg may run before it is stopped.
@@ -16,6 +20,74 @@ const rgRunTimeout = 30 * time.Second
 
 // rgRunName is the results buffer's name. One is kept and reused, as fd's is.
 const rgRunName = "*rg*"
+
+// rgHeaderLines is how many lines come before the matches: the search's
+// heading and a blank line.
+const rgHeaderLines = 2
+
+// rgState is what makes a buffer rg's results: the directory rg ran in, which
+// its matches' file names are relative to.
+type rgState struct {
+	dir string
+}
+
+// rgBindings is the results' keymap. The buffer is read-only, so printable
+// keys are free to take.
+var rgBindings = []struct{ Spec, Command string }{
+	{"RET", "rg-find-match"},
+	{"f", "rg-find-match"},
+	{"n", "next-line"},
+	{"p", "previous-line"},
+	{"q", "quit-window"},
+}
+
+// newRgKeymap builds the rg results' keymap from rgBindings.
+func newRgKeymap() (*keymap.Map, error) {
+	m := keymap.New()
+	for _, b := range rgBindings {
+		if err := bindSpec(m, b.Spec, b.Command); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+// rgOf returns b's rg results, or nil when b holds none.
+func (e *Editor) rgOf(b *text.Buffer) *rgState {
+	if b == nil {
+		return nil
+	}
+	return e.rgs[b]
+}
+
+// rgFindMatch visits the file of the match on the line at point, at the
+// matched line.
+func (e *Editor) rgFindMatch() error {
+	b := e.active.Buf
+	st := e.rgOf(b)
+	if st == nil {
+		return errors.New("not a rg results buffer")
+	}
+	line := e.active.Pt.Line
+	if line < rgHeaderLines || line >= b.NumLines() {
+		return nil
+	}
+	// Each match is file:line:text, and the text may hold colons of its own.
+	file, rest, ok := strings.Cut(b.Line(line).String(), ":")
+	if !ok {
+		return nil
+	}
+	num, _, _ := strings.Cut(rest, ":")
+	n, err := strconv.Atoi(num)
+	if err != nil || n < 1 {
+		return nil
+	}
+	if err := e.visitFile(filepath.Join(st.dir, file)); err != nil {
+		return err
+	}
+	e.active.Pt = text.Pos{Line: n - 1}
+	return nil
+}
 
 // rgRun runs rg with args, its arguments as typed, in dir, and shows the
 // matching lines in a read-only buffer, one match per line with its file and
@@ -56,6 +128,7 @@ func (e *Editor) rgRun(dir, args string) error {
 	if err := fillReadOnly(b, body); err != nil {
 		return err
 	}
+	e.rgs[b] = &rgState{dir: dir}
 	e.active.Visit(b)
 	e.Echo("%d matching lines for rg %s", strings.Count(matches, "\n")+1, args)
 	return nil
@@ -80,5 +153,14 @@ func registerRgRunCommands(e *Editor, reg *command.Registry) error {
 		},
 	}
 	cmd.Interactive = true
-	return reg.Register(cmd)
+	if err := reg.Register(cmd); err != nil {
+		return err
+	}
+	find := command.Command{
+		Name: "rg-find-match",
+		Doc:  "Visit the file of the match on the line at point in the rg results, at the matched line.",
+		Fn:   func(command.Env) error { return e.rgFindMatch() },
+	}
+	find.Interactive = true
+	return reg.Register(find)
 }

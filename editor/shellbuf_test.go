@@ -18,7 +18,12 @@ func TestShellToggleRunsCommands(t *testing.T) {
 		t.Fatalf("M-t did not enter a shell buffer")
 	}
 	for _, r := range "echo nem-shell-ok" {
-		press(t, e, string(r))
+		// A space is written SPC in a key spec, as the keymap has it.
+		spec := string(r)
+		if r == ' ' {
+			spec = "SPC"
+		}
+		press(t, e, spec)
 	}
 	press(t, e, "RET")
 	// The line typed is in the buffer once; the shell's answer makes twice.

@@ -129,6 +129,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `next-line` | `C-n` `<down>` | Move point down one line, keeping the goal column. |
 | `occur` | `M-s o` | List the lines of this buffer that match a regexp, each leading to its line. |
 | `open-externally` |  | Open this buffer's file, or the directory a listing shows, with the system app. |
+| `open-in-emacs` | `S-<f4>` | Open this buffer's file in a running Emacs, at point's line. A listing opens its directory. Needs emacsclient and a server. |
 | `open-line` | `C-o` | Insert a newline after point, leaving point in place. |
 | `other-window` | `C-x o` | Select another window, ARG windows forward. |
 | `preview-close` |  | Close the Markdown preview and show the buffer it renders in its place. |
@@ -211,4 +212,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-201 commands in all.
+202 commands in all.

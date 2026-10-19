@@ -139,6 +139,12 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-x s` | `save-some-buffers` | Offer to save each modified buffer. |
 | `C-x x g` | `revert-buffer` | Read the buffer's file again, throwing away any edits after asking; a listing is read again, a compilation run again. |
 
+### Shift-F4 opens the buffer in a running Emacs
+
+| Key | Command | Does |
+|---|---|---|
+| `S-<f4>` | `open-in-emacs` | Open this buffer's file in a running Emacs, at point's line. |
+
 ### Version control on the file being edited
 
 | Key | Command | Does |

@@ -441,6 +441,12 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err := registerExternalCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering external commands: %w", err)
 	}
+	if err := registerEmacsCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering open-in-emacs: %w", err)
+	}
+	if err := registerSublimeCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering open-in-sublime: %w", err)
+	}
 	if err := registerKmacroCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering keyboard macro commands: %w", err)
 	}

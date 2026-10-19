@@ -122,6 +122,11 @@ var defaultBindings = []struct{ Spec, Command string }{
 	{"C-x s", "save-some-buffers"},
 	{"C-x x g", "revert-buffer"},
 
+	// Shift-F4 opens the buffer in a running Emacs. See emacs.go.
+	{"S-<f4>", "open-in-emacs"},
+	// Shift-F5 opens it in Sublime Text. See sublime.go.
+	{"S-<f5>", "open-in-sublime"},
+
 	// Version control on the file being edited. See vc.go.
 	{"C-x v v", "vc-next-action"},
 

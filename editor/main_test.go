@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -23,6 +24,10 @@ func TestMain(m *testing.M) {
 	defaultClipboardReader = noSystemClipboard
 	systemOpen = func(string, func(error)) error { return sysopen.ErrUnavailable }
 	systemAvailable = func() error { return sysopen.ErrUnavailable }
+	// Likewise emacsclient: a test must never talk to the developer's Emacs.
+	emacsclientRun = func(...string) error { return errors.New("emacsclient is not available in tests") }
+	// And subl, for Sublime Text.
+	sublimeRun = func(...string) error { return errors.New("subl is not available in tests") }
 	// And the icons guess, which asks fontconfig: a test must not pass on
 	// one machine and fail on another because of the fonts installed.
 	detectIcons = func() bool { return false }

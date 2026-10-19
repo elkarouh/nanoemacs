@@ -576,5 +576,6 @@ func placeCursor(scr tcell.Screen, w, h, echoY int, rects map[*view.Window]view.
 	if sy > textH-1 {
 		sy = textH - 1
 	}
+	paintExtraCursors(scr, rect, gw, textH, textW, f, th)
 	scr.ShowCursor(rect.X+gw+sx, rect.Y+sy)
 }

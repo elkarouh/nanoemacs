@@ -121,7 +121,7 @@ there if it has one.
 
 ### delete-selection
 
-Typing replaces the selection, and `DEL` or `C-d` deletes it, as in nearly every
+Typing replaces the selection, and `DEL` deletes it, as in nearly every
 editor; `C-y` replaces it with what is yanked. The replacement is one undo step.
 Emacs leaves this off; `false` restores its behaviour, where a selection sits
 inert until a command uses it. `C-w`, `M-w` and `TAB` act on the region either

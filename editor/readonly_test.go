@@ -9,7 +9,7 @@ import "testing"
 func TestReadOnlyBufferRefusesEveryEdit(t *testing.T) {
 	for _, keys := range [][]string{
 		{"x"},
-		{"C-d"},
+		{"<delete>"},
 		{"DEL"},
 		{"C-k"},
 		{"RET"},

@@ -232,10 +232,10 @@ func TestKeyboardQuitDeactivatesButKeepsTheMark(t *testing.T) {
 // Any command that changes the buffer ends the selection, as in emacs.
 func TestAnEditDeactivatesTheRegion(t *testing.T) {
 	for _, keys := range [][]string{
-		{"C-d"}, // delete-char is a delete-selection command, but...
-		{"C-/"}, // undo changes the buffer
-		{"C-o"}, // open-line
-		{"C-t"}, // transpose-chars
+		{"<delete>"}, // delete-char is a delete-selection command, but...
+		{"C-/"},      // undo changes the buffer
+		{"C-o"},      // open-line
+		{"C-t"},      // transpose-chars
 	} {
 		t.Run(strings.Join(keys, " "), func(t *testing.T) {
 			e, _ := newTestEditor(t, "alpha beta gamma")

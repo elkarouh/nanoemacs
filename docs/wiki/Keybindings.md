@@ -39,7 +39,8 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 
 | Key | Command | Does |
 |---|---|---|
-| `C-d` `<delete>` | `delete-char` | Delete the character after point. |
+| `C-d` | `add-next-occurrence` | Select the word at point, then each further press adds a cursor at the next occurrence of the selection. |
+| `<delete>` | `delete-char` | Delete the character after point. |
 | `<backspace>` | `delete-backward-char` | Delete the character before point. |
 | `M-d` | `kill-word` | Kill forward to the end of the next word. |
 | `M-<backspace>` | `backward-kill-word` | Kill backward to the start of the previous word. |
@@ -144,6 +145,12 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | Key | Command | Does |
 |---|---|---|
 | `S-<f4>` | `open-in-emacs` | Open this buffer's file in a running Emacs, at point's line. |
+
+### Shift-F5 opens it in Sublime Text
+
+| Key | Command | Does |
+|---|---|---|
+| `S-<f5>` | `open-in-sublime` | Open this buffer's file in Sublime Text, at point's line. |
 
 ### Version control on the file being edited
 

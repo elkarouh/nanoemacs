@@ -30,10 +30,24 @@ type Window struct {
 	LeftCol text.ColIdx // leftmost visible display column
 	GoalCol text.ColIdx // GoalColUnset when not established
 
+	// Extra holds the cursors beyond point, added by multiple-cursor editing.
+	// Point's own selection is the buffer's mark, as it always was; each extra
+	// cursor carries its own. Empty in the normal case.
+	Extra []Cursor
+
 	// Drawn is what the last frame drew here: the buffer, and the lines of
 	// it on screen. The renderer uses it to let go of the layout of lines
 	// that have since scrolled away.
 	Drawn Span
+}
+
+// Cursor is an extra cursor: where it is, and the other end of its selection.
+// Mark equal to Pt means it has no selection.
+type Cursor struct {
+	Pt, Mark text.Pos
+	// Goal is the column vertical motion aims for, as Window.GoalCol is for
+	// point. GoalColUnset when not established.
+	Goal text.ColIdx
 }
 
 // Span is a run of a buffer's lines.
@@ -75,6 +89,8 @@ func (w *Window) Visit(b *text.Buffer) {
 	w.TopRow = 0
 	w.LeftCol = 0
 	w.GoalCol = GoalColUnset
+	// Extra cursors are positions in the buffer they were added to.
+	w.Extra = nil
 }
 
 // SetTop puts line at the top of the window, from its first row.

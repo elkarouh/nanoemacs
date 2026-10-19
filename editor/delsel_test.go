@@ -27,7 +27,7 @@ func TestSelectAllThenDeleteCharEmptiesTheBuffer(t *testing.T) {
 	e, _ := newTestEditor(t, "alpha", "beta")
 
 	press(t, e, "C-x", "h")
-	press(t, e, "C-d")
+	press(t, e, "<delete>")
 
 	if got := e.Buf().String(); got != "" {
 		t.Errorf("buffer = %q after C-x h then C-d, want empty", got)
@@ -42,7 +42,7 @@ func TestSupersedeDoesNotEatAnExtraCharacter(t *testing.T) {
 		key  string
 	}{
 		{"backspace", "<backspace>"},
-		{"delete-char", "C-d"},
+		{"delete-char", "<delete>"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, _ := newTestEditor(t, "abcdef")

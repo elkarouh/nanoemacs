@@ -123,7 +123,9 @@ Every key is on the wiki's [Keybindings](https://github.com/Borderliner/nem/wiki
 ### Editing
 
 The emacs motion and editing set: `C-f` `C-b` `C-n` `C-p`, `M-f` `M-b`, `C-a`
-`C-e`, `M-<` `M->`, `C-d`, `C-k`, `M-d`, `C-t`, `M-u` `M-l` `M-c`. Motion stops
+`C-e`, `M-<` `M->`, `C-k`, `M-d`, `C-t`, `M-u` `M-l` `M-c`. `C-d` selects the
+word at point and adds cursors at further occurrences; see the multiple-cursor
+notes in the Commands page. Motion stops
 at grapheme boundaries, so a decomposed `é` or a family emoji is one press, not
 seven.
 

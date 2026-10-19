@@ -221,6 +221,11 @@ type Editor struct {
 	// dispatch.
 	childDispatched bool
 
+	// dispatchDepth counts nested dispatches. A motion such as right-char runs
+	// another command through Env.Run, which dispatches again; only the
+	// outermost dispatch moves the extra cursors, so they move once.
+	dispatchDepth int
+
 	// safe holds the data-safety state: the backup store, which files have been
 	// backed up this session, the autosave clock, and what each file looked like
 	// on disk when nem last touched it. See safety.go.
@@ -446,6 +451,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	}
 	if err := registerSublimeCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering open-in-sublime: %w", err)
+	}
+	if err := registerMultiCursorCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering multiple cursors: %w", err)
 	}
 	if err := registerKmacroCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering keyboard macro commands: %w", err)

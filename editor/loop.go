@@ -480,6 +480,8 @@ func (e *Editor) run(name string, skip bool) (err error) {
 // open exactly as C-k would, and last-command names kill-line rather than
 // execute-extended-command.
 func (e *Editor) dispatch(name string) error {
+	e.dispatchDepth++
+	defer func() { e.dispatchDepth-- }()
 	if _, ok := e.reg.Lookup(name); !ok {
 		e.arg.reset()
 		return command.ErrUnknownCommand
@@ -503,12 +505,38 @@ func (e *Editor) dispatch(name string) error {
 	// A region the command is about to replace is deleted first, inside an undo
 	// group that stays open across the command so the two undo together. skip
 	// is true when the deletion was the whole operation.
-	skip, closeGroup := e.consumeSelection(name)
-	if closeGroup != nil {
-		defer closeGroup()
+	// With extra cursors, an edit runs at each of them instead, and no
+	// selection is consumed first: the edit takes every cursor's selection.
+	// See multicursor.go.
+	multi, multiErr := false, error(nil)
+	if e.hasExtraCursors() {
+		multi, multiErr = e.multiEdit(name)
+	}
+	// A motion with extra cursors collapses each selection first, as the other
+	// multi-cursor editors do; see collapseForMotion.
+	motion := e.hasExtraCursors() && multiMotionNames[name] && e.dispatchDepth == 1
+	var skip bool
+	var skipExtra []bool
+	switch {
+	case multi:
+		skip = true
+	case motion:
+		skip, skipExtra = e.collapseForMotion(name)
+	default:
+		var closeGroup func()
+		skip, closeGroup = e.consumeSelection(name)
+		if closeGroup != nil {
+			defer closeGroup()
+		}
 	}
 
 	err := e.run(name, skip)
+	if multi && err == nil {
+		err = multiErr
+	}
+	if motion {
+		e.moveExtraCursors(name, skipExtra)
+	}
 
 	e.keepPromptWindow()
 	// Outside the childDispatched guard on purpose: clamping is idempotent and
@@ -604,6 +632,13 @@ func (e *Editor) clampWindowPoints() {
 	}
 	if e.mini != nil {
 		e.mini.win.Pt = e.mini.win.Buf.ClampPos(e.mini.win.Pt)
+	}
+	// Extra cursors are kept inside their buffer like point is.
+	for _, w := range e.tree.Windows() {
+		for i := range w.Extra {
+			w.Extra[i].Pt = w.Buf.ClampPos(w.Extra[i].Pt)
+			w.Extra[i].Mark = w.Buf.ClampPos(w.Extra[i].Mark)
+		}
 	}
 }
 

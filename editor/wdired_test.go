@@ -107,7 +107,7 @@ func TestWdiredOnlyNamesAreEditable(t *testing.T) {
 	}{
 		{"the details", text.Pos{Line: line, Col: 5}, []string{"z"}},
 		{"a line break", text.Pos{Line: line, Col: 38}, []string{"RET"}},
-		{"joining lines", text.Pos{Line: line}, []string{"C-e", "C-d"}},
+		{"joining lines", text.Pos{Line: line}, []string{"C-e", "<delete>"}},
 		{"backing into the date", text.Pos{Line: line}, []string{"C-a", "DEL"}},
 		{"the header", text.Pos{}, []string{"z"}},
 	} {

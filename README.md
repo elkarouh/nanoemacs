@@ -97,6 +97,14 @@ nem notes.txt          # a file, new or not
 nem +44 main.go        # a file, at line 44 (+44:7 for column 7 too)
 nem .                  # a directory, listed in dired
 nem                    # yazi on the current directory (dired if yazi is missing)
+nem --cwd-file=FILE    # on exit, write the active buffer's directory to FILE
+```
+
+To leave your shell in the directory nem ended in, call it through a function
+in your shell's rc file:
+
+```sh
+n() { local f; f=$(mktemp) && nem --cwd-file="$f" "$@"; cd "$(cat "$f")" && rm -f "$f"; }
 ```
 
 | Key | Does | Key | Does |

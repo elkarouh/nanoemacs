@@ -45,6 +45,10 @@ func (e *Editor) yaziStart() string {
 	return wd
 }
 
+// ExitDir is the directory a shell should be left in when nem exits: the one
+// the active buffer lists or its file is in, else the working directory.
+func (e *Editor) ExitDir() string { return e.yaziStart() }
+
 // yazi runs yazi on the active buffer and opens what it chose.
 func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
 

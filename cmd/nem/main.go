@@ -33,6 +33,7 @@ var version = "dev"
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	cwdFile := flag.String("cwd-file", "", "on exit, write the directory of the active buffer to `file`, for a shell wrapper to cd to")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [[+LINE[:COLUMN]] file...]\n", os.Args[0])
 		flag.PrintDefaults()
@@ -51,7 +52,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(targets); err != nil {
+	err = run(targets, *cwdFile)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "nem:", err)
 		// Ended by a signal, nem exits as the signal would have ended it, so
 		// a shell or a service manager reads the same status.
@@ -73,7 +75,7 @@ func rescue(e *editor.Editor) (saved []string) {
 	return saved
 }
 
-func run(targets []target) (err error) {
+func run(targets []target, cwdFile string) (err error) {
 	scr, err := ui.NewScreen()
 	if err != nil {
 		return fmt.Errorf("opening terminal: %w", err)
@@ -155,5 +157,10 @@ func run(targets []target) (err error) {
 
 	err = e.Loop()
 	e.SaveMemory()
+	if cwdFile != "" {
+		// The directory is read after the loop ends, while the buffers are
+		// still there. A failure to write it must not hide how nem ended.
+		_ = os.WriteFile(cwdFile, []byte(e.ExitDir()+"\n"), 0o600)
+	}
 	return err
 }

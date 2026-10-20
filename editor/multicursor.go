@@ -466,7 +466,7 @@ func shiftAfterEdit(q, lo, hi, end text.Pos) text.Pos {
 	return text.Pos{Line: q.Line + end.Line - hi.Line, Col: q.Col}
 }
 
-// removeLastCursor is C-M-d: it drops the cursor added most recently, which
+// removeLastCursor is C-M-u: it drops the cursor added most recently, which
 // gives back its word to the other selections, one press at a time. Point's
 // own selection is never removed; C-g clears everything at once.
 func (e *Editor) removeLastCursor() error {

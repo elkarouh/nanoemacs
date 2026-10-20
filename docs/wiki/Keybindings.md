@@ -41,11 +41,6 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 |---|---|---|
 | `C-d` | `add-next-occurrence` | Select the word at point, then each further press adds a cursor at the next occurrence of the selection. |
 | `<delete>` | `delete-char` | Delete the character after point. |
-
-### C-M-u takes back the last cursor added; C-M-s drops it and skips to the
-
-| Key | Command | Does |
-|---|---|---|
 | `C-M-u` | `remove-last-cursor` | Drop the cursor added most recently, giving its word back to the others. |
 | `C-M-s` | `skip-next-occurrence` | Drop the most recently added cursor and select the occurrence after it, skipping the word just passed over. |
 | `<backspace>` | `delete-backward-char` | Delete the character before point. |

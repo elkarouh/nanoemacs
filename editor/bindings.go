@@ -38,10 +38,9 @@ var defaultBindings = []struct{ Spec, Command string }{
 
 	// Editing.
 	// C-d selects the word at point, and each further press adds a cursor at
-	// the next occurrence. See multicursor.go.
+	// the next occurrence; C-M-u takes back the last cursor added, and C-M-s
+	// drops it and skips to the occurrence after. See multicursor.go.
 	{"C-d", "add-next-occurrence"}, {"<delete>", "delete-char"},
-	// C-M-u takes back the last cursor added; C-M-s drops it and skips to the
-	// occurrence after. See multicursor.go.
 	{"C-M-u", "remove-last-cursor"}, {"C-M-s", "skip-next-occurrence"},
 	{"<backspace>", "delete-backward-char"},
 	{"M-d", "kill-word"},

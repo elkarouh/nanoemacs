@@ -159,7 +159,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `recompile` | compilation: `g` | Run the last compilation again, or the one this buffer shows. |
 | `recover-file` |  | Replace this buffer with its autosaved contents. |
 | `redo` | `M-_` | Redo the change most recently undone. |
-| `remove-last-cursor` | `C-M-d` | Drop the cursor added most recently, giving its word back to the others. |
+| `remove-last-cursor` | `C-M-u` | Drop the cursor added most recently, giving its word back to the others. |
 | `replace-regexp` |  | Replace a regexp's matches everywhere after point, or in the region, without asking. |
 | `replace-string` |  | Replace a string everywhere after point, or in the region, without asking. |
 | `reverse-region` |  | Reverse the order of the region's lines. |

@@ -137,11 +137,11 @@ func TestTypingAfterTwoRightPressesInserts(t *testing.T) {
 	wantText(t, e, "foo Xbar foo Xbaz foo")
 }
 
-// C-M-d drops the cursor added last. Its word goes back to plain text, and the
+// C-M-u drops the cursor added last. Its word goes back to plain text, and the
 // earlier selections are kept.
 func TestRemoveLastCursorGivesItsWordBack(t *testing.T) {
 	e, _ := newTestEditor(t, "foo bar foo baz foo")
-	press(t, e, "C-d", "C-d", "C-d", "C-M-d")
+	press(t, e, "C-d", "C-d", "C-d", "C-M-u")
 	if got := len(e.active.Extra); got != 1 {
 		t.Fatalf("extra cursors = %d, want 1", got)
 	}
@@ -149,10 +149,10 @@ func TestRemoveLastCursorGivesItsWordBack(t *testing.T) {
 	wantText(t, e, "X bar X baz foo")
 }
 
-// C-M-d with only point's selection left does nothing harmful.
+// C-M-u with only point's selection left does nothing harmful.
 func TestRemoveLastCursorWithNoneLeftIsSafe(t *testing.T) {
 	e, _ := newTestEditor(t, "foo bar foo")
-	press(t, e, "C-d", "C-M-d")
+	press(t, e, "C-d", "C-M-u")
 	wantEcho(t, e, "Only one cursor")
 	if got := e.Buf().String(); got != "foo bar foo" {
 		t.Errorf("buffer changed: %q", got)

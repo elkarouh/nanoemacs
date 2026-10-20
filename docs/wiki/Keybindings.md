@@ -215,6 +215,8 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-x 1` | `delete-other-windows` | Make the current window fill the frame. |
 | `C-x 0` | `delete-window` | Remove the current window. |
 | `C-x o` | `other-window` | Select another window, ARG windows forward. |
+| `S-<left>` | `windmove-left` | Select the window to the left of this one. |
+| `S-<right>` | `windmove-right` | Select the window to the right of this one. |
 
 ### Display
 

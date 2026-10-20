@@ -180,6 +180,7 @@ var defaultBindings = []struct{ Spec, Command string }{
 	{"C-x 1", "delete-other-windows"},
 	{"C-x 0", "delete-window"},
 	{"C-x o", "other-window"},
+	{"S-<left>", "windmove-left"}, {"S-<right>", "windmove-right"},
 
 	// Display. C-x n is free in nem: emacs uses it for narrowing, which nem does
 	// not have. C-c is deliberately not used - that prefix belongs to the user,

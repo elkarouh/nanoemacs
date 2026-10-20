@@ -126,3 +126,37 @@ func TestSidebarGoesAwayWithOtherWindowsDeleted(t *testing.T) {
 		t.Error("C-b did not open the panel again")
 	}
 }
+
+func TestShiftArrowsMoveBetweenPanes(t *testing.T) {
+	e, _ := sideProject(t)
+	main := e.active
+	press(t, e, "C-b") // into the panel, on the left
+	press(t, e, "S-<right>")
+	if e.active != main {
+		t.Fatal("S-<right> from the panel did not reach the file's window")
+	}
+	press(t, e, "S-<left>")
+	if e.active != e.side {
+		t.Fatal("S-<left> did not go back to the panel")
+	}
+	press(t, e, "S-<left>")
+	wantEcho(t, e, "No window to the left")
+	if e.active != e.side {
+		t.Error("moved with no window there")
+	}
+}
+
+func TestShiftArrowsPickTheWindowOnThatSide(t *testing.T) {
+	e, _ := sideProject(t)
+	press(t, e, "C-x", "3") // two panes side by side
+	right := e.active
+	press(t, e, "S-<left>")
+	left := e.active
+	if left == right {
+		t.Fatal("S-<left> stayed in place")
+	}
+	press(t, e, "S-<right>")
+	if e.active != right {
+		t.Error("S-<right> did not come back")
+	}
+}

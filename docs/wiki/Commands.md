@@ -223,6 +223,8 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `wdired-exit` | wdired: `C-x C-q` | Return to the listing, asking whether to apply any edited names. |
 | `wdired-finish-edit` | wdired: `C-c C-c` `C-x C-s` | Rename the files to the names as edited, and return to the listing. |
 | `what-cursor-position` | `C-x =` | Describe the character at point and where point is. |
+| `windmove-left` | `S-<left>` | Select the window to the left of this one. |
+| `windmove-right` | `S-<right>` | Select the window to the right of this one. |
 | `write-file` | `C-x C-w` | Save the current buffer under a new name. |
 | `yank` | `C-y` | Insert the current kill-ring entry at point. |
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
@@ -230,4 +232,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-220 commands in all.
+222 commands in all.

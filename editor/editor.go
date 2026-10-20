@@ -463,6 +463,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err := registerExternalCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering external commands: %w", err)
 	}
+	if err := registerWindmoveCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering windmove commands: %w", err)
+	}
 	if err := registerSidebarCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering sidebar commands: %w", err)
 	}

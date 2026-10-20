@@ -96,7 +96,7 @@ one machine.
 nem notes.txt          # a file, new or not
 nem +44 main.go        # a file, at line 44 (+44:7 for column 7 too)
 nem .                  # a directory, listed in dired
-nem                    # yazi on the current directory (dired if yazi is missing)
+nem                    # yazi on the current directory; q there quits nem (dired if yazi is missing)
 nem --cwd-file=FILE    # on exit, write the active buffer's directory to FILE
 ```
 

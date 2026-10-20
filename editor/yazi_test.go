@@ -193,3 +193,45 @@ func TestYaziRefusesABinaryChosenAmongText(t *testing.T) {
 		t.Errorf("active buffer is %q, want the text file", e.active.Buf.Path())
 	}
 }
+
+func TestStartYaziQuitsWhenYaziIsQuitWithNothingChosen(t *testing.T) {
+	fakeYazi(t)
+	e, _ := newTestEditor(t)
+	before := e.active.Buf
+	if !e.StartYazi(t.TempDir()) {
+		t.Error("nem would start after yazi was quit with q")
+	}
+	if e.active.Buf != before {
+		t.Error("a buffer was opened")
+	}
+}
+
+func TestStartYaziOpensWhatWasChosenAndStarts(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeYazi(t, path)
+	e, _ := newTestEditor(t)
+	if e.StartYazi(dir) {
+		t.Error("nem quit after a file was chosen")
+	}
+	if e.active.Buf.Path() != path {
+		t.Errorf("active buffer is %q, want %q", e.active.Buf.Path(), path)
+	}
+}
+
+func TestStartYaziFallsBackToDiredWhenYaziFails(t *testing.T) {
+	dir := t.TempDir()
+	old := yaziRun
+	t.Cleanup(func() { yaziRun = old })
+	yaziRun = func(string, string) error { return os.ErrNotExist }
+	e, _ := newTestEditor(t)
+	if e.StartYazi(dir) {
+		t.Fatal("nem quit although yazi failed")
+	}
+	if st := e.diredOf(e.active.Buf); st == nil || st.dir != dir {
+		t.Error("the directory was not listed in dired")
+	}
+}

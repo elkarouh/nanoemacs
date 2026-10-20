@@ -7,8 +7,9 @@
 //
 // Each named file is opened into a buffer; the first is shown. A +LINE
 // argument, as in emacs, opens the file after it at that line (and column).
-// With no arguments nem runs yazi on the current directory, falling back to
-// dired on it if yazi opens nothing.
+// With no arguments nem runs yazi on the current directory: a file chosen is
+// opened, and quitting yazi without choosing quits nem. Without yazi it lists
+// the directory in dired.
 package main
 
 import (
@@ -134,7 +135,7 @@ func run(targets []target, cwdFile string) (err error) {
 	}
 
 	// With no file named, nem runs yazi on the current directory below, and
-	// lists it in dired if yazi opens nothing.
+	// lists it in dired if yazi is missing or fails.
 	bare := len(targets) == 0
 
 	for i, t := range targets {
@@ -151,11 +152,12 @@ func run(targets []target, cwdFile string) (err error) {
 		}
 	}
 
-	if bare {
-		e.StartYazi(".")
+	// Quitting yazi without choosing a file ends nem too: yazi was the start,
+	// not a detour.
+	quit := bare && e.StartYazi(".")
+	if !quit {
+		err = e.Loop()
 	}
-
-	err = e.Loop()
 	e.SaveMemory()
 	if cwdFile != "" {
 		// The directory is read after the loop ends, while the buffers are

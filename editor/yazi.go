@@ -67,17 +67,21 @@ func (e *Editor) ExitDir() string {
 // yazi runs yazi on the active buffer and opens what it chose.
 func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
 
-// StartYazi is nem with no file named: yazi on dir, before the first frame.
-// When yazi opens nothing - it is missing, fails, or quits with nothing chosen
-// - dir is listed in dired instead, with a failure on the echo line.
-func (e *Editor) StartYazi(dir string) {
+// StartYazi is nem with no file named: yazi on dir, before the first frame. It
+// reports whether nem should quit instead of starting: yazi was quit without
+// choosing anything, as with q. When yazi is missing or fails, dir is listed in
+// dired instead, with the failure on the echo line.
+func (e *Editor) StartYazi(dir string) (quit bool) {
 	before := e.active.Buf
 	err := e.yaziAt(dir)
+	if err == nil && e.active.Buf == before {
+		return true
+	}
 	if err != nil {
 		defer e.Echo("%v", err)
 	}
 	if e.active.Buf != before {
-		return
+		return false
 	}
 	if e.yaziEnd != "" {
 		dir = e.yaziEnd // where yazi was left
@@ -85,6 +89,7 @@ func (e *Editor) StartYazi(dir string) {
 	if b, derr := e.Dired(dir); derr == nil {
 		e.active.Visit(b)
 	}
+	return false
 }
 
 // yaziPause is how long the refusal of a binary file stays on the terminal

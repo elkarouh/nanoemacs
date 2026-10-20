@@ -7,7 +7,7 @@
 //
 // Each named file is opened into a buffer; the first is shown. A +LINE
 // argument, as in emacs, opens the file after it at that line (and column).
-// With no arguments nem starts in *scratch*.
+// With no arguments nem opens the current directory, as "nem ." does.
 package main
 
 import (
@@ -130,10 +130,10 @@ func run(targets []target) (err error) {
 		_ = e.UseStateDir(dir)
 	}
 
-	// Only the command line knows whether a file was asked for; the editor sees
-	// an empty *scratch* either way.
+	// With no file named, nem starts as if it were given ".": the current
+	// directory, listed in dired.
 	if len(targets) == 0 {
-		e.ShowStartup()
+		targets = []target{{Path: "."}}
 	}
 
 	for i, t := range targets {

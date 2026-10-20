@@ -96,7 +96,7 @@ one machine.
 nem notes.txt          # a file, new or not
 nem +44 main.go        # a file, at line 44 (+44:7 for column 7 too)
 nem .                  # a directory, listed in dired
-nem                    # *scratch*
+nem                    # the current directory, as "nem ."
 ```
 
 | Key | Does | Key | Does |

@@ -58,12 +58,20 @@ func (e *Editor) yaziStart() string {
 // yazi runs yazi on the active buffer and opens what it chose.
 func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
 
-// StartYazi is nem with no file named: yazi on dir, before the first frame. A
-// failure, or yazi quitting with nothing chosen, leaves the buffer shown as it
-// is, with the failure on the echo line.
+// StartYazi is nem with no file named: yazi on dir, before the first frame.
+// When yazi opens nothing - it is missing, fails, or quits with nothing chosen
+// - dir is listed in dired instead, with a failure on the echo line.
 func (e *Editor) StartYazi(dir string) {
-	if err := e.yaziAt(dir); err != nil {
-		e.Echo("%v", err)
+	before := e.active.Buf
+	err := e.yaziAt(dir)
+	if err != nil {
+		defer e.Echo("%v", err)
+	}
+	if e.active.Buf != before {
+		return
+	}
+	if b, derr := e.Dired(dir); derr == nil {
+		e.active.Visit(b)
 	}
 }
 

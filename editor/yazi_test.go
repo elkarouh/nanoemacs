@@ -111,3 +111,31 @@ func TestExitDirIsWhereYaziWasLeft(t *testing.T) {
 		t.Errorf("after switching buffers ExitDir = %q, want %q", got, third)
 	}
 }
+
+func TestYaziKillBufferClosesTheBufferThenOpensWhatWasChosen(t *testing.T) {
+	dir := t.TempDir()
+	a, b := filepath.Join(dir, "a.txt"), filepath.Join(dir, "b.txt")
+	for _, p := range []string{a, b} {
+		if err := os.WriteFile(p, []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fakeYazi(t, b)
+	e, _ := newTestEditor(t)
+	ba, err := e.OpenFile(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.VisitOpened(ba)
+	if err := e.yaziKillBuffer(); err != nil {
+		t.Fatal(err)
+	}
+	if e.active.Buf.Path() != b {
+		t.Errorf("active buffer is %q, want %q", e.active.Buf.Path(), b)
+	}
+	for _, buf := range e.buffers {
+		if buf.Path() == a {
+			t.Error("a.txt is still open")
+		}
+	}
+}

@@ -156,12 +156,42 @@ func (e *Editor) yaziAt(start string) error {
 	return nil
 }
 
-// registerYaziCommands adds yazi.
+// yaziKillBuffer closes the active buffer, asking first if it is modified, then
+// runs yazi in the directory it was in. It is for leaving a file for another
+// one without keeping the first open. When it is the only buffer there is
+// nothing to close it into, so it stays.
+func (e *Editor) yaziKillBuffer() error {
+	b := e.active.Buf
+	start := e.yaziStart()
+	if b.Modified() && b.Path() != "" {
+		c, err := e.ReadChar(fmt.Sprintf("Buffer %s modified; kill anyway? (y/n) ", e.BufferName(b)), []rune{'y', 'n'})
+		if err != nil {
+			return err
+		}
+		if c != 'y' {
+			e.Echo("Buffer not killed")
+			return nil
+		}
+	}
+	if len(e.buffers) > 1 {
+		if err := e.KillBuffer(b); err != nil {
+			return err
+		}
+	}
+	return e.yaziAt(start)
+}
+
+// registerYaziCommands adds yazi and yazi-kill-buffer.
 func registerYaziCommands(e *Editor, reg *command.Registry) error {
-	return reg.Register(command.Command{
-		Name:        "yazi",
-		Doc:         "Run the yazi file manager on this buffer's file or directory, then open what it chose. Needs yazi on the PATH.",
-		Interactive: true,
-		Fn:          func(command.Env) error { return e.yazi() },
-	})
+	for _, c := range []command.Command{
+		{Name: "yazi", Doc: "Run the yazi file manager in this buffer's directory, then open what it chose. Needs yazi on the PATH.",
+			Interactive: true, Fn: func(command.Env) error { return e.yazi() }},
+		{Name: "yazi-kill-buffer", Doc: "Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose.",
+			Interactive: true, Fn: func(command.Env) error { return e.yaziKillBuffer() }},
+	} {
+		if err := reg.Register(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/sysopen"
+	"github.com/Borderliner/nem/text"
 )
 
 // M-x yazi hands the terminal to the yazi file manager. nem is suspended while
@@ -134,24 +137,32 @@ func (e *Editor) yaziAt(start string) error {
 	if len(paths) == 0 {
 		return nil
 	}
-	for i, p := range paths {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
-			b, err := e.Dired(p)
-			if err != nil {
-				return err
-			}
-			if i == 0 {
-				e.active.Visit(b)
-			}
+	// What yazi chose is opened, the first of it shown. A file that is not
+	// text is refused, whatever the setting for such files: choosing one here
+	// is a mistake, not a request for the system's app.
+	shown := false
+	var refused []string
+	for _, p := range paths {
+		var b *text.Buffer
+		var err error
+		if fi, serr := os.Stat(p); serr == nil && fi.IsDir() {
+			b, err = e.Dired(p)
+		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText {
+			refused = append(refused, filepath.Base(p))
 			continue
+		} else {
+			b, err = e.OpenFile(p)
 		}
-		b, err := e.OpenFile(p)
 		if err != nil {
 			return err
 		}
-		if i == 0 {
+		if !shown {
 			e.VisitOpened(b)
+			shown = true
 		}
+	}
+	if len(refused) > 0 {
+		return fmt.Errorf("not a text file: %s", strings.Join(refused, ", "))
 	}
 	return nil
 }

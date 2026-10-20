@@ -139,3 +139,22 @@ func TestYaziKillBufferClosesTheBufferThenOpensWhatWasChosen(t *testing.T) {
 		}
 	}
 }
+
+func TestYaziRefusesABinaryFile(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "blob.bin")
+	if err := os.WriteFile(bin, []byte{0, 1, 2, 0, 255, 254, 0, 0}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeYazi(t, bin)
+	e, _ := newTestEditor(t)
+	before := e.active.Buf
+	n := len(e.buffers)
+	err := e.yazi()
+	if err == nil {
+		t.Fatal("a binary file was accepted")
+	}
+	if e.active.Buf != before || len(e.buffers) != n {
+		t.Error("the binary file was opened")
+	}
+}

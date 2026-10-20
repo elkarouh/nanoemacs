@@ -136,3 +136,42 @@ func TestTypingAfterTwoRightPressesInserts(t *testing.T) {
 	press(t, e, "C-d", "C-d", "<right>", "<right>", "X")
 	wantText(t, e, "foo Xbar foo Xbaz foo")
 }
+
+// C-M-d drops the cursor added last. Its word goes back to plain text, and the
+// earlier selections are kept.
+func TestRemoveLastCursorGivesItsWordBack(t *testing.T) {
+	e, _ := newTestEditor(t, "foo bar foo baz foo")
+	press(t, e, "C-d", "C-d", "C-d", "C-M-d")
+	if got := len(e.active.Extra); got != 1 {
+		t.Fatalf("extra cursors = %d, want 1", got)
+	}
+	press(t, e, "X")
+	wantText(t, e, "X bar X baz foo")
+}
+
+// C-M-d with only point's selection left does nothing harmful.
+func TestRemoveLastCursorWithNoneLeftIsSafe(t *testing.T) {
+	e, _ := newTestEditor(t, "foo bar foo")
+	press(t, e, "C-d", "C-M-d")
+	wantEcho(t, e, "Only one cursor")
+	if got := e.Buf().String(); got != "foo bar foo" {
+		t.Errorf("buffer changed: %q", got)
+	}
+}
+
+// C-M-s drops the last cursor and moves on: the word it skipped is not picked
+// again, so the third occurrence is selected instead of the second.
+func TestSkipNextOccurrenceSkipsTheSecondMatch(t *testing.T) {
+	e, _ := newTestEditor(t, "foo bar foo baz foo")
+	press(t, e, "C-d", "C-d", "C-M-s", "X")
+	wantText(t, e, "X bar foo baz X")
+}
+
+// Skipping with no further occurrence restores the cursor it dropped.
+func TestSkipWithNothingBeyondKeepsTheCursor(t *testing.T) {
+	e, _ := newTestEditor(t, "foo bar foo")
+	press(t, e, "C-d", "C-d", "C-M-s")
+	if got := len(e.active.Extra); got != 1 {
+		t.Errorf("extra cursors = %d, want 1 (the skipped one restored)", got)
+	}
+}

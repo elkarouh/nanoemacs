@@ -27,6 +27,9 @@ const addNextOccurrence = "add-next-occurrence"
 
 // registerMultiCursorCommands adds add-next-occurrence.
 func registerMultiCursorCommands(e *Editor, reg *command.Registry) error {
+	if err := registerMultiCursorExtraCommands(e, reg); err != nil {
+		return err
+	}
 	return reg.Register(command.Command{
 		Name:        addNextOccurrence,
 		Doc:         "Select the word at point, then each further press adds a cursor at the next occurrence of the selection. Edits then apply at every cursor.",
@@ -84,6 +87,12 @@ func wordAt(b *text.Buffer, p text.Pos) (lo, hi text.Pos) {
 // addNextOccurrence is C-d: the first press selects the word at point, and
 // each later one adds a cursor on the next occurrence of the selection.
 func (e *Editor) addNextOccurrence() error {
+	return e.addNext(nil)
+}
+
+// addNext does C-d's work. exclude lists cursors whose occurrence must not be
+// chosen again: skipNextOccurrence passes the one it has just dropped.
+func (e *Editor) addNext(exclude []view.Cursor) error {
 	w := e.active
 	b := w.Buf
 	if !b.MarkActive() {
@@ -105,7 +114,7 @@ func (e *Editor) addNextOccurrence() error {
 		return nil
 	}
 	needle := b.Text(lo, hi)
-	cs := allCursors(w)
+	cs := append(allCursors(w), exclude...)
 	// Search from the furthest selection end, so the next press moves on
 	// rather than finding the same occurrence again.
 	from := cs[0].Pt
@@ -199,6 +208,14 @@ func maxOf(p, a, b text.Pos) text.Pos {
 // posLess orders positions in the buffer.
 func posLess(p, q text.Pos) bool {
 	return p.Line < q.Line || (p.Line == q.Line && p.Col < q.Col)
+}
+
+// multiKeepsCursorsNames are the commands that add or take back cursors. They
+// must not drop the cursors they work on, as an ordinary command would.
+var multiKeepsCursorsNames = map[string]bool{
+	addNextOccurrence:      true,
+	"remove-last-cursor":   true,
+	"skip-next-occurrence": true,
 }
 
 // multiMotionNames are the motion commands, which move every cursor. Each runs
@@ -308,7 +325,7 @@ var multiEditNames = map[string]bool{
 // whether it handled the command, so the caller runs nothing else for it. Any
 // other command drops the extra cursors and is run as usual.
 func (e *Editor) multiEdit(name string) (bool, error) {
-	if name == addNextOccurrence || multiMotionNames[name] {
+	if multiKeepsCursorsNames[name] || multiMotionNames[name] {
 		return false, nil
 	}
 	if !multiEditNames[name] {
@@ -447,4 +464,67 @@ func shiftAfterEdit(q, lo, hi, end text.Pos) text.Pos {
 		return text.Pos{Line: end.Line, Col: end.Col + (q.Col - hi.Col)}
 	}
 	return text.Pos{Line: q.Line + end.Line - hi.Line, Col: q.Col}
+}
+
+// removeLastCursor is C-M-d: it drops the cursor added most recently, which
+// gives back its word to the other selections, one press at a time. Point's
+// own selection is never removed; C-g clears everything at once.
+func (e *Editor) removeLastCursor() error {
+	w := e.active
+	if len(w.Extra) == 0 {
+		e.Echo("Only one cursor")
+		return nil
+	}
+	w.Extra = w.Extra[:len(w.Extra)-1]
+	e.Echo("%d cursors", len(w.Extra)+1)
+	return nil
+}
+
+// skipNextOccurrence is C-M-s: it drops the most recently added cursor and
+// adds the occurrence after it, so the word just passed over is not picked
+// again. With no extra cursor yet it simply adds the next occurrence.
+func (e *Editor) skipNextOccurrence() error {
+	w := e.active
+	if !w.Buf.MarkActive() {
+		e.Echo("Select a word first (C-d)")
+		return nil
+	}
+	if len(w.Extra) == 0 {
+		return e.addNext(nil)
+	}
+	last := w.Extra[len(w.Extra)-1]
+	w.Extra = w.Extra[:len(w.Extra)-1]
+	before := len(w.Extra)
+	if err := e.addNext([]view.Cursor{last}); err != nil {
+		return err
+	}
+	// Nothing beyond the skipped word: put it back rather than lose it.
+	if len(w.Extra) == before {
+		w.Extra = append(w.Extra, last)
+	}
+	return nil
+}
+
+// registerMultiCursorExtraCommands adds the two commands for taking cursors
+// back, and skipping one.
+func registerMultiCursorExtraCommands(e *Editor, reg *command.Registry) error {
+	for _, c := range []command.Command{
+		{
+			Name:        "remove-last-cursor",
+			Doc:         "Drop the cursor added most recently, giving its word back to the others.",
+			Interactive: true,
+			Fn:          func(command.Env) error { return e.removeLastCursor() },
+		},
+		{
+			Name:        "skip-next-occurrence",
+			Doc:         "Drop the most recently added cursor and select the occurrence after it, skipping the word just passed over.",
+			Interactive: true,
+			Fn:          func(command.Env) error { return e.skipNextOccurrence() },
+		},
+	} {
+		if err := reg.Register(c); err != nil {
+			return err
+		}
+	}
+	return nil
 }

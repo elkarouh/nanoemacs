@@ -9,6 +9,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 
 | Command | Keys | Does |
 |---|---|---|
+| `add-next-occurrence` | `C-d` | Select the word at point, then each further press adds a cursor at the next occurrence of the selection. Edits then apply at every cursor. |
 | `async-shell-command` | `M-&` | Run a shell command, showing its output as it comes, in *Async Shell Command*. |
 | `back-to-indentation` | `M-m` | Move to the first non-blank character on the line. |
 | `backward-char` | `C-b` | Move point one grapheme backward. |
@@ -28,7 +29,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `count-words` | `M-=` | Count the lines, words and characters in the region, or the buffer. |
 | `dabbrev-expand` | `M-/` | Complete the word before point from words already in the text; repeat for the next. |
 | `delete-backward-char` | `<backspace>` | Delete the character before point. |
-| `delete-char` | `C-d` `<delete>` | Delete the character after point. |
+| `delete-char` | `<delete>` | Delete the character after point. |
 | `delete-horizontal-space` | `M-\` | Delete all spaces and tabs around point. |
 | `delete-indentation` | `M-^` | Join this line to the previous one, with one space between. |
 | `delete-other-windows` | `C-x 1` | Make the current window fill the frame. |
@@ -130,6 +131,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `occur` | `M-s o` | List the lines of this buffer that match a regexp, each leading to its line. |
 | `open-externally` |  | Open this buffer's file, or the directory a listing shows, with the system app. |
 | `open-in-emacs` | `S-<f4>` | Open this buffer's file in a running Emacs, at point's line. A listing opens its directory. Needs emacsclient and a server. |
+| `open-in-sublime` | `S-<f5>` | Open this buffer's file in Sublime Text, at point's line. A listing opens its directory. Needs the subl command. |
 | `open-line` | `C-o` | Insert a newline after point, leaving point in place. |
 | `other-window` | `C-x o` | Select another window, ARG windows forward. |
 | `preview-close` |  | Close the Markdown preview and show the buffer it renders in its place. |
@@ -157,6 +159,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `recompile` | compilation: `g` | Run the last compilation again, or the one this buffer shows. |
 | `recover-file` |  | Replace this buffer with its autosaved contents. |
 | `redo` | `M-_` | Redo the change most recently undone. |
+| `remove-last-cursor` | `C-M-d` | Drop the cursor added most recently, giving its word back to the others. |
 | `replace-regexp` |  | Replace a regexp's matches everywhere after point, or in the region, without asking. |
 | `replace-string` |  | Replace a string everywhere after point, or in the region, without asking. |
 | `reverse-region` |  | Reverse the order of the region's lines. |
@@ -181,6 +184,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `shell-previous-input` |  | Replace the input with the one sent before it. |
 | `shell-send-input` |  | Send the line being typed to the shell. |
 | `shell-toggle` | `M-t` | Go to the shell buffer, or back to the buffer it was entered from. |
+| `skip-next-occurrence` | `C-M-s` | Drop the most recently added cursor and select the occurrence after it, skipping the word just passed over. |
 | `sort-lines` |  | Sort the region's lines; with a prefix argument, in reverse. |
 | `split-window-below` | `C-x 2` | Split the current window, stacking the new one beneath it. |
 | `split-window-right` | `C-x 3` | Split the current window, placing the new one beside it. |
@@ -212,4 +216,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-202 commands in all.
+206 commands in all.

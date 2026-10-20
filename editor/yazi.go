@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/Borderliner/nem/command"
@@ -35,19 +34,10 @@ func runYazi(start, chooser string) error {
 	return nil
 }
 
-// yaziStart is where yazi opens: the active buffer's file, so yazi reveals it,
-// else its directory, else the working directory.
+// yaziStart is the directory yazi opens in: the active buffer's file's, or the
+// one a dired buffer lists, else the working directory.
 func (e *Editor) yaziStart() string {
 	b := e.active.Buf
-	if st := e.diredOf(b); st != nil {
-		if en, ok := e.entryAtPoint(st); ok {
-			return filepath.Join(st.dir, en.Name)
-		}
-		return st.dir
-	}
-	if p := b.Path(); p != "" {
-		return p
-	}
 	if d := e.bufferDir(b); d != "" {
 		return d
 	}

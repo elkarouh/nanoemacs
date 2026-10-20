@@ -59,3 +59,27 @@ func TestYaziWithNothingChosenChangesNothing(t *testing.T) {
 		t.Error("the active buffer changed")
 	}
 }
+
+func TestYaziOpensInTheDirectoryOfTheFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(path, []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	old := yaziRun
+	t.Cleanup(func() { yaziRun = old })
+	yaziRun = func(start, chooser string) error { got = start; return nil }
+	e, _ := newTestEditor(t)
+	b, err := e.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.VisitOpened(b)
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	if got != dir {
+		t.Errorf("yazi started on %q, want %q", got, dir)
+	}
+}

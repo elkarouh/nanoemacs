@@ -11,7 +11,7 @@ import (
 
 // Bookmarks are dired's, as emacs has them: C-x r m names the directory of the
 // dired buffer, and C-x r b goes to a named one. A name holds one directory,
-// and setting a name again moves it. They last as long as the editor runs.
+// and setting a name again moves it. They are kept in nem's memory between sessions.
 
 // bookmarkListName is the name of the buffer the bookmark list shows in.
 const bookmarkListName = "*Bookmarks*"
@@ -36,7 +36,7 @@ func registerBookmarkCommands(e *Editor, reg *command.Registry) error {
 				if name == "" {
 					return errors.New("a bookmark needs a name")
 				}
-				e.bookmarks[name] = st.dir
+				e.setDirBookmark(name, st.dir)
 				e.Echo("Bookmark %s set at %s", name, st.dir)
 				return nil
 			}},
@@ -93,7 +93,7 @@ func registerBookmarkCommands(e *Editor, reg *command.Registry) error {
 				if _, ok := e.bookmarks[name]; !ok {
 					return errors.New("no bookmark named " + name)
 				}
-				delete(e.bookmarks, name)
+				e.deleteDirBookmark(name)
 				e.Echo("Bookmark %s deleted", name)
 				return nil
 			}},
@@ -115,4 +115,18 @@ func (e *Editor) bookmarkNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// setDirBookmark bookmarks dir under name and remembers it for later sessions.
+func (e *Editor) setDirBookmark(name, dir string) {
+	e.bookmarks[name] = dir
+	e.mem.SetDirBookmark(name, dir)
+	e.saveMemory()
+}
+
+// deleteDirBookmark removes the bookmark called name, here and in the memory.
+func (e *Editor) deleteDirBookmark(name string) {
+	delete(e.bookmarks, name)
+	e.mem.RemoveDirBookmark(name)
+	e.saveMemory()
 }

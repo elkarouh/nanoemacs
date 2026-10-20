@@ -16,6 +16,9 @@ func (e *Editor) UseStateDir(dir string) error {
 		return err
 	}
 	e.mem = m
+	for name, dir := range m.DirBookmarks {
+		e.bookmarks[name] = dir
+	}
 	return nil
 }
 

@@ -160,3 +160,25 @@ func TestShiftArrowsPickTheWindowOnThatSide(t *testing.T) {
 		t.Error("S-<right> did not come back")
 	}
 }
+
+func TestDirectoryBookmarksPersistAcrossSessions(t *testing.T) {
+	state := t.TempDir()
+	e, _ := newTestEditor(t)
+	if err := e.UseStateDir(state); err != nil {
+		t.Fatal(err)
+	}
+	e.setDirBookmark("proj", "/work/proj")
+	e.setDirBookmark("old", "/work/old")
+	e.deleteDirBookmark("old")
+
+	e2, _ := newTestEditor(t)
+	if err := e2.UseStateDir(state); err != nil {
+		t.Fatal(err)
+	}
+	if got := e2.bookmarks["proj"]; got != "/work/proj" {
+		t.Errorf("proj = %q after a restart, want /work/proj", got)
+	}
+	if _, ok := e2.bookmarks["old"]; ok {
+		t.Error("a deleted bookmark came back")
+	}
+}

@@ -67,6 +67,13 @@ type Memory struct {
 	// Bookmarks are the files bookmarked, in the order they were added.
 	Bookmarks []string `json:"bookmarks,omitempty"`
 
+	// DirBookmarks are the directories bookmarked, by name.
+	DirBookmarks map[string]string `json:"dir_bookmarks,omitempty"`
+
+	// unmarkedDirs are directory bookmarks removed this session, as unmarked
+	// is for files.
+	unmarkedDirs map[string]bool
+
 	// unmarked are bookmarks removed this session, kept so that saving does
 	// not bring them back from the copy on disk.
 	unmarked map[string]bool
@@ -93,6 +100,7 @@ func Load(dir string) (*Memory, error) {
 	m.History, m.Recent, m.Places, m.Projects = disk.History, disk.Recent, disk.Places, disk.Projects
 	m.Languages = disk.Languages
 	m.Bookmarks = disk.Bookmarks
+	m.DirBookmarks = disk.DirBookmarks
 	return m, nil
 }
 
@@ -177,6 +185,24 @@ func (m *Memory) LanguageOf(path string) string {
 	return m.Languages[path].Name
 }
 
+// SetDirBookmark bookmarks dir under name, replacing any bookmark of that name.
+func (m *Memory) SetDirBookmark(name, dir string) {
+	delete(m.unmarkedDirs, name)
+	if m.DirBookmarks == nil {
+		m.DirBookmarks = map[string]string{}
+	}
+	m.DirBookmarks[name] = dir
+}
+
+// RemoveDirBookmark deletes the directory bookmark called name.
+func (m *Memory) RemoveDirBookmark(name string) {
+	delete(m.DirBookmarks, name)
+	if m.unmarkedDirs == nil {
+		m.unmarkedDirs = map[string]bool{}
+	}
+	m.unmarkedDirs[name] = true
+}
+
 // AddBookmark adds the file path to the bookmarks, if it is not there.
 func (m *Memory) AddBookmark(path string) {
 	delete(m.unmarked, path)
@@ -234,6 +260,14 @@ func (m *Memory) Save() error {
 		for _, p := range disk.Bookmarks {
 			if !slices.Contains(m.Bookmarks, p) && !m.unmarked[p] {
 				m.Bookmarks = append(m.Bookmarks, p)
+			}
+		}
+		for name, dir := range disk.DirBookmarks {
+			if _, ok := m.DirBookmarks[name]; !ok && !m.unmarkedDirs[name] {
+				if m.DirBookmarks == nil {
+					m.DirBookmarks = map[string]string{}
+				}
+				m.DirBookmarks[name] = dir
 			}
 		}
 		trimPlaces(m.Places)

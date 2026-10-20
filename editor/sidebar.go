@@ -376,10 +376,10 @@ func registerSidebarCommands(e *Editor, reg *command.Registry) error {
 				if ent.Dir {
 					name := filepath.Base(ent.Path)
 					if _, ok := e.bookmarks[name]; ok {
-						delete(e.bookmarks, name)
+						e.deleteDirBookmark(name)
 						e.Echo("Bookmark removed: %s", name)
 					} else {
-						e.bookmarks[name] = ent.Path
+						e.setDirBookmark(name, ent.Path)
 						e.Echo("Bookmarked %s", name)
 					}
 				} else {
@@ -396,7 +396,7 @@ func registerSidebarCommands(e *Editor, reg *command.Registry) error {
 				if ent.Dir {
 					for n, d := range e.bookmarks {
 						if d == ent.Path {
-							delete(e.bookmarks, n)
+							e.deleteDirBookmark(n)
 						}
 					}
 				} else {

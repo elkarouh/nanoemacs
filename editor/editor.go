@@ -446,6 +446,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err := registerExternalCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering external commands: %w", err)
 	}
+	if err := registerKillBufferCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering kill-buffer commands: %w", err)
+	}
 	if err := registerYaziCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering yazi: %w", err)
 	}

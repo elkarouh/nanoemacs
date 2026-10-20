@@ -104,12 +104,14 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `isearch-forward` | `C-s` | Search incrementally forward as you type. |
 | `just-one-space` | `M-SPC` | Leave exactly one space around point. |
 | `keyboard-quit` | `C-g` | Abandon the current operation. |
+| `kill-all-buffers` |  | Kill every buffer after asking once, and again for each with unsaved changes. *scratch* is kept. |
 | `kill-buffer` | `C-x k` | Kill the current buffer, confirming if it is modified. |
 | `kill-compilation` | compilation: `C-c C-k` | Stop the running compilation. |
 | `kill-line` | `C-k` | Kill to the end of the line, or the newline if already there. |
 | `kill-region` | `C-w` | Kill the text between point and mark, saving it on the kill ring. |
 | `kill-ring-save` | `M-w` | Save the text between point and mark on the kill ring without removing it. |
 | `kill-sexp` | `C-M-k` | Kill the balanced expression after point. |
+| `kill-some-buffers` |  | Ask about each buffer in turn and kill the ones you answer y to; q stops asking. *scratch* is kept. |
 | `kill-word` | `M-d` | Kill forward to the end of the next word. |
 | `kmacro-end-and-call-macro` | `C-x e` | Play the last keyboard macro, ARG times; then e plays it again. |
 | `kmacro-end-macro` | `C-x )` | Stop recording a keyboard macro. |
@@ -217,4 +219,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi` | dired: `Y` | Run the yazi file manager on this buffer's file or directory, then open what it chose. Needs yazi on the PATH. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-207 commands in all.
+209 commands in all.

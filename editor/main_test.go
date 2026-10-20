@@ -26,6 +26,8 @@ func TestMain(m *testing.M) {
 	systemAvailable = func() error { return sysopen.ErrUnavailable }
 	// Likewise emacsclient: a test must never talk to the developer's Emacs.
 	emacsclientRun = func(...string) error { return errors.New("emacsclient is not available in tests") }
+	// And yazi, which would take over the test's terminal.
+	yaziRun = func(string, string) error { return errors.New("yazi is not available in tests") }
 	// And subl, for Sublime Text.
 	sublimeRun = func(...string) error { return errors.New("subl is not available in tests") }
 	// And the icons guess, which asks fontconfig: a test must not pass on

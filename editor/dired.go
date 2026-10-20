@@ -92,6 +92,7 @@ var diredBindings = []struct{ Spec, Command string }{
 	{"x", "dired-do-flagged-delete"},
 	{"D", "dired-do-delete"},
 	{"R", "dired-rg"},
+	{"Y", "yazi"},
 	{"C-x r m", "dired-bookmark-set"},
 	{"C-x r b", "dired-bookmark-jump"},
 	{"C-x r l", "dired-bookmark-list"},

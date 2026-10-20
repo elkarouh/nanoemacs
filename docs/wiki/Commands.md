@@ -214,6 +214,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `write-file` | `C-x C-w` | Save the current buffer under a new name. |
 | `yank` | `C-y` | Insert the current kill-ring entry at point. |
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
+| `yazi` | dired: `Y` | Run the yazi file manager on this buffer's file or directory, then open what it chose. Needs yazi on the PATH. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-206 commands in all.
+207 commands in all.

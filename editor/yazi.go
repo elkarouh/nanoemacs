@@ -55,8 +55,20 @@ func (e *Editor) yaziStart() string {
 	return wd
 }
 
-// yazi runs yazi and opens what it chose.
-func (e *Editor) yazi() error {
+// yazi runs yazi on the active buffer and opens what it chose.
+func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
+
+// StartYazi is nem with no file named: yazi on dir, before the first frame. A
+// failure, or yazi quitting with nothing chosen, leaves the buffer shown as it
+// is, with the failure on the echo line.
+func (e *Editor) StartYazi(dir string) {
+	if err := e.yaziAt(dir); err != nil {
+		e.Echo("%v", err)
+	}
+}
+
+// yaziAt runs yazi on start and opens what it chose.
+func (e *Editor) yaziAt(start string) error {
 	f, err := os.CreateTemp("", "nem-yazi-*")
 	if err != nil {
 		return err
@@ -65,7 +77,6 @@ func (e *Editor) yazi() error {
 	f.Close()
 	defer os.Remove(chooser)
 
-	start := e.yaziStart()
 	if e.scr != nil {
 		if err := e.scr.Suspend(); err != nil {
 			return err

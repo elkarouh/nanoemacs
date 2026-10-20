@@ -235,3 +235,28 @@ func TestStartYaziFallsBackToDiredWhenYaziFails(t *testing.T) {
 		t.Error("the directory was not listed in dired")
 	}
 }
+
+func TestYaziCommandQuitsNemWhenYaziIsQuitWithNothingChosen(t *testing.T) {
+	fakeYazi(t)
+	e, scr := newTestEditor(t)
+	feed(t, scr, txt("yazi"), key(t, "RET"))
+	press(t, e, "M-x")
+	if !e.Quitting() {
+		t.Error("nem is still running after yazi was quit with nothing chosen")
+	}
+}
+
+func TestYaziCommandStaysWhenAFileIsChosen(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeYazi(t, path)
+	e, scr := newTestEditor(t)
+	feed(t, scr, txt("yazi"), key(t, "RET"))
+	press(t, e, "M-x")
+	if e.Quitting() {
+		t.Error("nem quit although a file was chosen")
+	}
+}

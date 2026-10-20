@@ -157,7 +157,9 @@ type Editor struct {
 	sideKeys *keymap.Map
 	// yaziEnd is the directory yazi was last left in, and yaziEndBuf the buffer
 	// that was showing then. See yazi.go.
-	yaziEnd    string
+	yaziEnd string
+	// yaziChosen is whether the last yazi run chose anything.
+	yaziChosen bool
 	yaziEndBuf *text.Buffer
 	// bookmarks names the directories dired bookmarks, by name. See
 	// bookmarks.go.

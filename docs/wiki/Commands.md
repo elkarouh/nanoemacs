@@ -234,8 +234,8 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `write-file` | `C-x C-w` | Save the current buffer under a new name. |
 | `yank` | `C-y` | Insert the current kill-ring entry at point. |
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
-| `yazi` | dired: `Y` | Run the yazi file manager in this buffer's directory, then open what it chose. Needs yazi on the PATH. |
-| `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. |
+| `yazi` | dired: `Y` | Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. Needs yazi on the PATH. |
+| `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
 228 commands in all.

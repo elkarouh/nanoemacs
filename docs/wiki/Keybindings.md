@@ -264,7 +264,7 @@ In a directory listing: `C-x d`, `C-x C-j`, or any directory opened as a file. T
 | `x` | `dired-do-flagged-delete` | Delete the files flagged with d, after asking. |
 | `D` | `dired-do-delete` | Delete the marked files, or the file at point, after asking. |
 | `R` | `dired-rg` | Run rg, with the arguments typed, in the directory of this dired buffer, and list the matching lines. |
-| `Y` | `yazi` | Run the yazi file manager in this buffer's directory, then open what it chose. |
+| `Y` | `yazi` | Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. |
 | `C-x r m` | `dired-bookmark-set` | Bookmark the directory of this dired buffer under a name, which C-x r b goes to. |
 | `C-x r b` | `dired-bookmark-jump` | Go to the directory of a bookmark, read by its name with completion. |
 | `C-x r l` | `dired-bookmark-list` | List the bookmarks, each name with its directory, in a read-only buffer. |

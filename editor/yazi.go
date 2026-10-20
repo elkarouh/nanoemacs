@@ -129,6 +129,7 @@ func nonTextNames(paths []string) []string {
 
 // yaziAt runs yazi on start and opens what it chose.
 func (e *Editor) yaziAt(start string) error {
+	e.yaziChosen = false
 	f, err := os.CreateTemp("", "nem-yazi-*")
 	if err != nil {
 		return err
@@ -186,6 +187,7 @@ func (e *Editor) yaziAt(start string) error {
 		}()
 	}
 
+	e.yaziChosen = len(paths) > 0
 	if len(paths) == 0 {
 		return nil
 	}
@@ -219,11 +221,22 @@ func (e *Editor) yaziAt(start string) error {
 	return nil
 }
 
+// quitIfNothingChosen ends the session when yazi was quit without choosing
+// anything, as q does: yazi was the way around nem, and leaving it is leaving
+// both. Modified buffers are offered for saving first, as C-x C-c does.
+func (e *Editor) quitIfNothingChosen(env command.Env) error {
+	if e.yaziChosen {
+		return nil
+	}
+	return env.Run("save-buffers-kill-terminal")
+}
+
 // yaziKillBuffer closes the active buffer, asking first if it is modified, then
 // runs yazi in the directory it was in. It is for leaving a file for another
 // one without keeping the first open. When it is the only buffer there is
 // nothing to close it into, so it stays.
 func (e *Editor) yaziKillBuffer() error {
+	e.yaziChosen = true // unless yazi runs and is quit with nothing chosen
 	b := e.active.Buf
 	start := e.yaziStart()
 	if b.Modified() && b.Path() != "" {
@@ -247,10 +260,20 @@ func (e *Editor) yaziKillBuffer() error {
 // registerYaziCommands adds yazi and yazi-kill-buffer.
 func registerYaziCommands(e *Editor, reg *command.Registry) error {
 	for _, c := range []command.Command{
-		{Name: "yazi", Doc: "Run the yazi file manager in this buffer's directory, then open what it chose. Needs yazi on the PATH.",
-			Interactive: true, Fn: func(command.Env) error { return e.yazi() }},
-		{Name: "yazi-kill-buffer", Doc: "Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose.",
-			Interactive: true, Fn: func(command.Env) error { return e.yaziKillBuffer() }},
+		{Name: "yazi", Doc: "Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. Needs yazi on the PATH.",
+			Interactive: true, Fn: func(env command.Env) error {
+				if err := e.yazi(); err != nil {
+					return err
+				}
+				return e.quitIfNothingChosen(env)
+			}},
+		{Name: "yazi-kill-buffer", Doc: "Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem.",
+			Interactive: true, Fn: func(env command.Env) error {
+				if err := e.yaziKillBuffer(); err != nil {
+					return err
+				}
+				return e.quitIfNothingChosen(env)
+			}},
 	} {
 		if err := reg.Register(c); err != nil {
 			return err

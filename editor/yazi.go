@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Borderliner/nem/command"
 	"github.com/Borderliner/nem/sysopen"
@@ -86,6 +87,41 @@ func (e *Editor) StartYazi(dir string) {
 	}
 }
 
+// yaziPause is how long the refusal of a binary file stays on the terminal
+// before yazi comes back over it. A variable so tests need not wait.
+var yaziPause = 1500 * time.Millisecond
+
+// yaziChosen reads the paths yazi's chooser file holds.
+func yaziChosen(chooser string) []string {
+	f, err := os.Open(chooser)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	var paths []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if p := strings.TrimSpace(sc.Text()); p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
+}
+
+// nonTextNames lists the base names of the files among paths that are not text.
+func nonTextNames(paths []string) []string {
+	var out []string
+	for _, p := range paths {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			continue
+		}
+		if isText, err := sysopen.IsText(p); err == nil && !isText {
+			out = append(out, filepath.Base(p))
+		}
+	}
+	return out
+}
+
 // yaziAt runs yazi on start and opens what it chose.
 func (e *Editor) yaziAt(start string) error {
 	f, err := os.CreateTemp("", "nem-yazi-*")
@@ -102,7 +138,30 @@ func (e *Editor) yaziAt(start string) error {
 			return err
 		}
 	}
-	runErr := yaziRun(start, chooser)
+	// yazi is run again, where it was left, while all it chose is not text:
+	// there is nothing to open, and the way out is another choice.
+	var paths []string
+	var runErr error
+	for {
+		runErr = yaziRun(start, chooser)
+		if runErr != nil {
+			break
+		}
+		paths = yaziChosen(chooser)
+		binaries := nonTextNames(paths)
+		if len(paths) == 0 || len(binaries) != len(paths) {
+			break
+		}
+		fmt.Fprintf(os.Stderr, "\nnem: not a text file: %s\n", strings.Join(binaries, ", "))
+		time.Sleep(yaziPause)
+		if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
+			if dir := strings.TrimSpace(string(d)); dir != "" {
+				start = dir
+			}
+		}
+		os.Truncate(chooser, 0)
+		paths = nil
+	}
 	if e.scr != nil {
 		if err := e.scr.Resume(); err != nil {
 			return err
@@ -122,18 +181,6 @@ func (e *Editor) yaziAt(start string) error {
 		}()
 	}
 
-	f, err = os.Open(chooser)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	var paths []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		if p := strings.TrimSpace(sc.Text()); p != "" {
-			paths = append(paths, p)
-		}
-	}
 	if len(paths) == 0 {
 		return nil
 	}

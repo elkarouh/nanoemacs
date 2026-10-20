@@ -140,21 +140,56 @@ func TestYaziKillBufferClosesTheBufferThenOpensWhatWasChosen(t *testing.T) {
 	}
 }
 
-func TestYaziRefusesABinaryFile(t *testing.T) {
+func TestYaziComesBackAfterABinaryFile(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "blob.bin")
 	if err := os.WriteFile(bin, []byte{0, 1, 2, 0, 255, 254, 0, 0}, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	fakeYazi(t, bin)
+	oldPause, oldRun := yaziPause, yaziRun
+	t.Cleanup(func() { yaziPause, yaziRun = oldPause, oldRun })
+	yaziPause = 0
+	var starts []string
+	yaziRun = func(start, chooser string) error {
+		starts = append(starts, start)
+		if len(starts) == 1 {
+			// The first run chooses the binary file, from another directory.
+			if err := os.WriteFile(yaziCwdFile(chooser), []byte(dir+"\n"), 0o644); err != nil {
+				return err
+			}
+			return os.WriteFile(chooser, []byte(bin+"\n"), 0o644)
+		}
+		return nil // quit without choosing
+	}
 	e, _ := newTestEditor(t)
 	before := e.active.Buf
 	n := len(e.buffers)
-	err := e.yazi()
-	if err == nil {
-		t.Fatal("a binary file was accepted")
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	if len(starts) != 2 || starts[1] != dir {
+		t.Errorf("yazi ran %v, want a second run in %s", starts, dir)
 	}
 	if e.active.Buf != before || len(e.buffers) != n {
 		t.Error("the binary file was opened")
+	}
+}
+
+func TestYaziRefusesABinaryChosenAmongText(t *testing.T) {
+	dir := t.TempDir()
+	bin, txt := filepath.Join(dir, "blob.bin"), filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(bin, []byte{0, 1, 2, 0, 255, 254, 0, 0}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(txt, []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeYazi(t, bin, txt)
+	e, _ := newTestEditor(t)
+	if err := e.yazi(); err == nil {
+		t.Error("the binary file was accepted without a word")
+	}
+	if e.active.Buf.Path() != txt {
+		t.Errorf("active buffer is %q, want the text file", e.active.Buf.Path())
 	}
 }

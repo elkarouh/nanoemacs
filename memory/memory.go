@@ -64,6 +64,13 @@ type Memory struct {
 	// path.
 	Languages map[string]Language `json:"languages,omitempty"`
 
+	// Bookmarks are the files bookmarked, in the order they were added.
+	Bookmarks []string `json:"bookmarks,omitempty"`
+
+	// unmarked are bookmarks removed this session, kept so that saving does
+	// not bring them back from the copy on disk.
+	unmarked map[string]bool
+
 	// forgotten are projects forgotten this session, kept so that saving
 	// does not bring them back from the copy on disk.
 	forgotten map[string]bool
@@ -85,6 +92,7 @@ func Load(dir string) (*Memory, error) {
 	}
 	m.History, m.Recent, m.Places, m.Projects = disk.History, disk.Recent, disk.Places, disk.Projects
 	m.Languages = disk.Languages
+	m.Bookmarks = disk.Bookmarks
 	return m, nil
 }
 
@@ -169,6 +177,23 @@ func (m *Memory) LanguageOf(path string) string {
 	return m.Languages[path].Name
 }
 
+// AddBookmark adds the file path to the bookmarks, if it is not there.
+func (m *Memory) AddBookmark(path string) {
+	delete(m.unmarked, path)
+	if !slices.Contains(m.Bookmarks, path) {
+		m.Bookmarks = append(m.Bookmarks, path)
+	}
+}
+
+// RemoveBookmark takes path off the bookmarks.
+func (m *Memory) RemoveBookmark(path string) {
+	m.Bookmarks = slices.DeleteFunc(m.Bookmarks, func(p string) bool { return p == path })
+	if m.unmarked == nil {
+		m.unmarked = map[string]bool{}
+	}
+	m.unmarked[path] = true
+}
+
 // Save writes the memory, merged with whatever another session saved since
 // this one loaded: this session's entries first, since they are the newer,
 // then the other's that this one does not have. A memory that was not loaded
@@ -204,6 +229,11 @@ func (m *Memory) Save() error {
 					m.Places = map[string]Place{}
 				}
 				m.Places[path] = p
+			}
+		}
+		for _, p := range disk.Bookmarks {
+			if !slices.Contains(m.Bookmarks, p) && !m.unmarked[p] {
+				m.Bookmarks = append(m.Bookmarks, p)
 			}
 		}
 		trimPlaces(m.Places)

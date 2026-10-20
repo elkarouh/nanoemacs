@@ -19,7 +19,7 @@ var defaultBindings = []struct{ Spec, Command string }{
 	// The arrows go the way the line reads, as emacs's do: in a line of
 	// Persian, <right> goes back. C-f and C-b go forward and back regardless.
 	{"C-f", "forward-char"}, {"<right>", "right-char"},
-	{"C-b", "backward-char"}, {"<left>", "left-char"},
+	{"C-b", "sidebar-toggle"}, {"<left>", "left-char"},
 	{"C-n", "next-line"}, {"<down>", "next-line"},
 	{"C-p", "previous-line"}, {"<up>", "previous-line"},
 	{"M-f", "forward-word"},
@@ -144,6 +144,7 @@ var defaultBindings = []struct{ Spec, Command string }{
 	{"C-x <right>", "next-buffer"},
 	{"C-x <left>", "previous-buffer"},
 	{"C-x k", "kill-buffer"},
+	{"C-x r f", "bookmark-file"},
 	{"C-x C-b", "list-buffers"},
 	{"C-x d", "dired"},
 	{"C-x C-j", "dired-jump"},

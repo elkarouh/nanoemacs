@@ -12,12 +12,13 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `add-next-occurrence` | `C-d` | Select the word at point, then each further press adds a cursor at the next occurrence of the selection. Edits then apply at every cursor. |
 | `async-shell-command` | `M-&` | Run a shell command, showing its output as it comes, in *Async Shell Command*. |
 | `back-to-indentation` | `M-m` | Move to the first non-blank character on the line. |
-| `backward-char` | `C-b` | Move point one grapheme backward. |
+| `backward-char` | wdired: `C-b` | Move point one grapheme backward. |
 | `backward-kill-word` | `M-<backspace>` | Kill backward to the start of the previous word. |
 | `backward-paragraph` | `M-{` | Move to the start of the paragraph, ARG paragraphs back. |
 | `backward-sexp` | `C-M-b` | Move back over the previous balanced expression, ARG times. |
 | `backward-word` | `M-b` | Move point to the start of the previous word. |
 | `beginning-of-buffer` | `M-<` `C-<home>` | Move point to the start of the buffer. |
+| `bookmark-file` | `C-x r f` | Bookmark this buffer's file, to find it in the side panel's Bookmarks tab; again to remove it. |
 | `bracketed-paste` |  | Insert text pasted through the terminal, verbatim. *(Not offered by `M-x`.)* |
 | `capitalize-word` | `M-c` | Capitalize the following word. |
 | `comment-dwim` | `M-;` | Comment or uncomment the lines of the region, or the current line. |
@@ -186,6 +187,15 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `shell-previous-input` |  | Replace the input with the one sent before it. |
 | `shell-send-input` |  | Send the line being typed to the shell. |
 | `shell-toggle` | `M-t` | Go to the shell buffer, or back to the buffer it was entered from. |
+| `sidebar-bookmark` |  | Bookmark the file at point in the side panel (a directory is bookmarked under its name); again to remove it. |
+| `sidebar-open` |  | Open the entry at point: expand or close a directory in the tree, visit a file or a bookmark in the other window. |
+| `sidebar-parent` |  | Make the parent of the tree's root the root. |
+| `sidebar-refresh` |  | Read the side panel's directories and bookmarks again. |
+| `sidebar-set-root` |  | Make the directory at point the root of the side panel's tree. |
+| `sidebar-switch-tab` |  | Switch the side panel between its Tree and Bookmarks tabs. |
+| `sidebar-toggle` | `C-b` | Open the side panel, with the project's directory tree and the bookmarks, and move into it; in the panel, close it. |
+| `sidebar-toggle-hidden` |  | Show or hide dotfiles in the side panel's tree. |
+| `sidebar-unbookmark` |  | Remove the bookmark at point in the side panel's Bookmarks tab. |
 | `skip-next-occurrence` | `C-M-s` | Drop the most recently added cursor and select the occurrence after it, skipping the word just passed over. |
 | `sort-lines` |  | Sort the region's lines; with a prefix argument, in reverse. |
 | `split-window-below` | `C-x 2` | Split the current window, stacking the new one beneath it. |
@@ -220,4 +230,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-210 commands in all.
+220 commands in all.

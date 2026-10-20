@@ -7,7 +7,7 @@ Every key nem binds out of the box. Keys are written in emacs notation: `C-x` is
 
 Any key can be bound to another command, and any command to a key of your own, with [`nem.bind`](Lua-API#nembind). [Commands](Commands) lists every command, including those bound to no key, which `M-x` runs by name. Inside nem, `<f1> b` lists what is bound and `<f1> k` says what a key does.
 
-**On this page:** [Global keys](#global-keys) · [Dired](#dired) · [Editing file names](#editing-file-names) · [Search results](#search-results) · [Compilation output](#compilation-output) · [In a prompt](#in-a-prompt) · [Answering a question](#answering-a-question) · [Arguments and repeats](#arguments-and-repeats)
+**On this page:** [Global keys](#global-keys) · [Dired](#dired) · [Editing file names](#editing-file-names) · [Search results](#search-results) · [Side panel](#side-panel) · [Compilation output](#compilation-output) · [In a prompt](#in-a-prompt) · [Answering a question](#answering-a-question) · [Arguments and repeats](#arguments-and-repeats)
 
 ## Global keys
 
@@ -19,7 +19,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 |---|---|---|
 | `C-f` | `forward-char` | Move point one grapheme forward. |
 | `<right>` | `right-char` | Move one character to the right: forward, or backward in a line that reads right to left. |
-| `C-b` | `backward-char` | Move point one grapheme backward. |
+| `C-b` | `sidebar-toggle` | Open the side panel, with the project's directory tree and the bookmarks, and move into it; in the panel, close it. |
 | `<left>` | `left-char` | Move one character to the left: backward, or forward in a line that reads right to left. |
 | `C-n` `<down>` | `next-line` | Move point down one line, keeping the goal column. |
 | `C-p` `<up>` | `previous-line` | Move point up one line, keeping the goal column. |
@@ -174,6 +174,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `M-.` `C-x <right>` | `next-buffer` | Show the next buffer in the tab strip in the current window. |
 | `M-,` `C-x <left>` | `previous-buffer` | Show the previous buffer in the tab strip in the current window. |
 | `C-x k` | `kill-buffer` | Kill the current buffer, confirming if it is modified. |
+| `C-x r f` | `bookmark-file` | Bookmark this buffer's file, to find it in the side panel's Bookmarks tab; again to remove it. |
 | `C-x C-b` | `list-buffers` | Display a listing of every live buffer. |
 | `C-x d` | `dired` | List a directory, to browse it and act on its files. |
 | `C-x C-j` | `dired-jump` | List the directory of the current file, with point on the file. |
@@ -290,6 +291,7 @@ After `C-x C-q` in a listing, the file names are text to edit; these keys finish
 | `C-x C-q` | `wdired-exit` | Return to the listing, asking whether to apply any edited names. |
 | `C-a` `<home>` | `wdired-beginning-of-line` | Move to the start of the file name, or of the line off an entry. |
 | `C-e` `<end>` | `wdired-end-of-line` | Move to the end of the file name, or of the line off an entry. |
+| `C-b` | `backward-char` | Move point one grapheme backward. |
 
 ## Search results
 
@@ -307,6 +309,24 @@ In the results of a project search (`C-x p g`) or of `M-s o` (occur). Bind a key
 | `{` | `grep-previous-file` | Move to the previous file's matches, ARG files back. |
 | `g` | `grep-revert` | Search again, for the same thing in the same project or buffer. |
 | `q` | `quit-window` | Show another buffer here, putting this one at the back of the list. |
+
+## Side panel
+
+In the panel `C-b` opens on the left, with its Tree and Bookmarks tabs. Bind a key here with `nem.bind(key, command, "sidebar")`.
+
+| Key | Command | Does |
+|---|---|---|
+| `TAB` | `sidebar-switch-tab` | Switch the side panel between its Tree and Bookmarks tabs. |
+| `RET` `o` | `sidebar-open` | Open the entry at point: expand or close a directory in the tree, visit a file or a bookmark in the other window. |
+| `b` | `sidebar-bookmark` | Bookmark the file at point in the side panel (a directory is bookmarked under its name); again to remove it. |
+| `d` | `sidebar-unbookmark` | Remove the bookmark at point in the side panel's Bookmarks tab. |
+| `r` | `sidebar-set-root` | Make the directory at point the root of the side panel's tree. |
+| `^` | `sidebar-parent` | Make the parent of the tree's root the root. |
+| `.` | `sidebar-toggle-hidden` | Show or hide dotfiles in the side panel's tree. |
+| `g` | `sidebar-refresh` | Read the side panel's directories and bookmarks again. |
+| `n` | `next-line` | Move point down one line, keeping the goal column. |
+| `p` | `previous-line` | Move point up one line, keeping the goal column. |
+| `q` | `sidebar-toggle` | Open the side panel, with the project's directory tree and the bookmarks, and move into it; in the panel, close it. |
 
 ## Compilation output
 

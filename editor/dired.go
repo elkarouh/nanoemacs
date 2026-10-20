@@ -142,6 +142,9 @@ func (e *Editor) modeKeys(b *text.Buffer) *keymap.Map {
 	if e.rgOf(b) != nil {
 		return e.rgKeys
 	}
+	if b != nil && b == e.sideBuf {
+		return e.sideKeys
+	}
 	if e.compileOf(b) != nil {
 		return e.compileKeys
 	}
@@ -165,7 +168,7 @@ func (e *Editor) diredOf(b *text.Buffer) *diredState {
 // isListing is the renderer's ListingFunc: a directory, a search's results,
 // or a command's output.
 func (e *Editor) isListing(b *text.Buffer) bool {
-	return e.diredOf(b) != nil || e.grepOf(b) != nil || e.compileOf(b) != nil
+	return e.diredOf(b) != nil || e.grepOf(b) != nil || e.compileOf(b) != nil || (b != nil && b == e.sideBuf)
 }
 
 // showsCursor is the renderer's CursorOf: a listing whose names are being

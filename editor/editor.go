@@ -147,6 +147,14 @@ type Editor struct {
 	// See rgrun.go.
 	rgs    map[*text.Buffer]*rgState
 	rgKeys *keymap.Map
+	// side is the side panel's window while it is in the frame, sidePrev the
+	// window it was entered from, sideBuf its buffer and sidebar what it
+	// shows. See sidebar.go.
+	side     *view.Window
+	sidePrev *view.Window
+	sideBuf  *text.Buffer
+	sidebar  *sidebarState
+	sideKeys *keymap.Map
 	// yaziEnd is the directory yazi was last left in, and yaziEndBuf the buffer
 	// that was showing then. See yazi.go.
 	yaziEnd    string
@@ -317,6 +325,10 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("installing rg bindings: %w", err)
 	}
+	sk, err := newSidebarKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing side panel bindings: %w", err)
+	}
 	ck, err := newCompileKeymap()
 	if err != nil {
 		return nil, fmt.Errorf("installing compilation bindings: %w", err)
@@ -356,6 +368,7 @@ func New(scr tcell.Screen) (*Editor, error) {
 		rgs:        map[*text.Buffer]*rgState{},
 		bookmarks:  map[string]string{},
 		rgKeys:     rk,
+		sideKeys:   sk,
 
 		raw:             map[*text.Buffer]bool{},
 		compile:         map[*text.Buffer]*compileState{},
@@ -449,6 +462,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	}
 	if err := registerExternalCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering external commands: %w", err)
+	}
+	if err := registerSidebarCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering sidebar commands: %w", err)
 	}
 	if err := registerKillBufferCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering kill-buffer commands: %w", err)

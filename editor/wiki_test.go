@@ -298,7 +298,7 @@ Every key nem binds out of the box. Keys are written in emacs notation: ` + "`C-
 
 Any key can be bound to another command, and any command to a key of your own, with [` + "`nem.bind`" + `](Lua-API#nembind). [Commands](Commands) lists every command, including those bound to no key, which ` + "`M-x`" + ` runs by name. Inside nem, ` + "`<f1> b`" + ` lists what is bound and ` + "`<f1> k`" + ` says what a key does.
 
-**On this page:** [Global keys](#global-keys) · [Dired](#dired) · [Editing file names](#editing-file-names) · [Search results](#search-results) · [Compilation output](#compilation-output) · [In a prompt](#in-a-prompt) · [Answering a question](#answering-a-question) · [Arguments and repeats](#arguments-and-repeats)
+**On this page:** [Global keys](#global-keys) · [Dired](#dired) · [Editing file names](#editing-file-names) · [Search results](#search-results) · [Side panel](#side-panel) · [Compilation output](#compilation-output) · [In a prompt](#in-a-prompt) · [Answering a question](#answering-a-question) · [Arguments and repeats](#arguments-and-repeats)
 
 ## Global keys
 
@@ -316,6 +316,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 		{"Dired", "dired", "In a directory listing: `C-x d`, `C-x C-j`, or any directory opened as a file. The listing is read-only, so plain letters are commands here.", diredBindings},
 		{"Editing file names", "wdired", "After `C-x C-q` in a listing, the file names are text to edit; these keys finish or abandon the edit.", wdiredBindings},
 		{"Search results", "grep", "In the results of a project search (`C-x p g`) or of `M-s o` (occur).", grepBindings},
+		{"Side panel", "sidebar", "In the panel `C-b` opens on the left, with its Tree and Bookmarks tabs.", sidebarBindings},
 		{"Compilation output", "compilation", "In the output of `M-x compile`, `M-x recompile`, `C-x p c` and `M-&`.", compileBindings},
 	}
 	for _, m := range modes {

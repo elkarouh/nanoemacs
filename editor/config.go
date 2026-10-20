@@ -38,7 +38,7 @@ var hookCommands = map[string][]string{
 // modeKeymaps are the keymaps of nem's modes, by the names nem.bind knows
 // them by: nem.bind("k", "dired-do-delete", "dired").
 func (e *Editor) modeKeymaps() map[string]*keymap.Map {
-	return map[string]*keymap.Map{"dired": e.diredKeys, "wdired": e.wdiredKeys, "grep": e.grepKeys, "compilation": e.compileKeys}
+	return map[string]*keymap.Map{"dired": e.diredKeys, "wdired": e.wdiredKeys, "grep": e.grepKeys, "compilation": e.compileKeys, "sidebar": e.sideKeys}
 }
 
 // LoadConfig loads the Lua config at path, applies its settings, and wires its

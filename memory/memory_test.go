@@ -180,3 +180,27 @@ func TestLanguages(t *testing.T) {
 		t.Errorf("after an undo, an older choice came back: %q", l)
 	}
 }
+
+func TestBookmarksSurviveSaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	m, _ := Load(dir)
+	m.AddBookmark("/a/one.go")
+	m.AddBookmark("/a/two.go")
+	m.AddBookmark("/a/one.go")
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
+	m2, _ := Load(dir)
+	if len(m2.Bookmarks) != 2 {
+		t.Fatalf("bookmarks = %v, want two", m2.Bookmarks)
+	}
+	// A removal in one session is not undone by another's copy on disk.
+	m2.RemoveBookmark("/a/one.go")
+	if err := m2.Save(); err != nil {
+		t.Fatal(err)
+	}
+	m3, _ := Load(dir)
+	if len(m3.Bookmarks) != 1 || m3.Bookmarks[0] != "/a/two.go" {
+		t.Errorf("bookmarks = %v, want only two.go", m3.Bookmarks)
+	}
+}

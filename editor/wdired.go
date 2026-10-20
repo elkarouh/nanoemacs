@@ -59,6 +59,8 @@ var wdiredBindings = []struct{ Spec, Command string }{
 	{"<home>", "wdired-beginning-of-line"},
 	{"C-e", "wdired-end-of-line"},
 	{"<end>", "wdired-end-of-line"},
+	// C-b is the side panel's everywhere else, but here it is a text buffer.
+	{"C-b", "backward-char"},
 }
 
 // newWdiredKeymap builds the wdired keymap from wdiredBindings.

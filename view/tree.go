@@ -40,6 +40,10 @@ type Split struct {
 	Vertical bool
 	A, B     Node
 	Ratio    float64
+	// FixedA, when positive, is A's width in a vertical split, in place of
+	// Ratio: a side panel keeps its width as the frame is resized. It gives
+	// way when the frame is too narrow to leave B a usable pane.
+	FixedA int
 }
 
 func (*Leaf) isNode()  {}
@@ -125,6 +129,9 @@ func walk(n Node, r Rect, onWin func(*Window, Rect), onDiv func(Rect)) {
 			}
 			avail := r.W - div
 			aW := int(float64(avail) * ratio)
+			if n.FixedA > 0 {
+				aW = max(min(n.FixedA, avail-MinWindowWidth), 0)
+			}
 			bW := avail - aW
 			walk(n.A, Rect{r.X, r.Y, aW, r.H}, onWin, onDiv)
 			if div > 0 && onDiv != nil {
@@ -139,6 +146,15 @@ func walk(n Node, r Rect, onWin func(*Window, Rect), onDiv func(Rect)) {
 		walk(n.B, Rect{r.X, r.Y + aH, r.W, bH}, onWin, onDiv)
 	}
 }
+
+// AttachLeft puts win in a pane of the given width along the left edge of the
+// whole frame, beside everything else. Delete takes it away again.
+func (t *Tree) AttachLeft(win *Window, width int) {
+	t.Root = &Split{Vertical: true, A: &Leaf{Win: win}, B: t.Root, Ratio: 0.3, FixedA: width}
+}
+
+// Contains reports whether w is a window of the tree.
+func (t *Tree) Contains(w *Window) bool { return w != nil && t.contains(w) }
 
 // Windows returns every window in tree order, which for trees built by Split
 // reads as the screen does: left to right, then top to bottom. This is the

@@ -204,3 +204,26 @@ func TestBookmarksSurviveSaveAndLoad(t *testing.T) {
 		t.Errorf("bookmarks = %v, want only two.go", m3.Bookmarks)
 	}
 }
+
+func TestNamedFavouritesSurviveAndStayRemoved(t *testing.T) {
+	dir := t.TempDir()
+	m, _ := Load(dir)
+	m.SetNamed(KindLink, "Go", "https://go.dev")
+	m.SetNamed(KindTool, "Test", "go test ./...")
+	m.SetNamed(KindTool, "Old", "make old")
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
+	m2, _ := Load(dir)
+	if m2.Links["Go"] != "https://go.dev" || m2.Tools["Test"] != "go test ./..." {
+		t.Fatalf("links %v tools %v after a reload", m2.Links, m2.Tools)
+	}
+	m2.RemoveNamed(KindTool, "Old")
+	if err := m2.Save(); err != nil {
+		t.Fatal(err)
+	}
+	m3, _ := Load(dir)
+	if _, ok := m3.Tools["Old"]; ok {
+		t.Error("a removed tool came back")
+	}
+}

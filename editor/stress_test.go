@@ -45,7 +45,9 @@ func stressSize(seeds, steps int) (first, n, length int) {
 // stressKeys are keys that never open a prompt: motion, editing, the region,
 // the kill ring, undo, windows, macros, the prefix argument and wrapping
 // lines. "|" joins the keys of one sequence.
-var stressKeys = strings.Fields(`C-f C-b C-n C-p M-f M-b C-a C-e M-< M-> C-v M-v C-l C-d <delete>
+// C-b is the side panel's, which takes the keys that follow into itself: its
+// own are tested in sidebar_test.go.
+var stressKeys = strings.Fields(`C-f <left> C-n C-p M-f M-b C-a C-e M-< M-> C-v M-v C-l C-d <delete>
 <backspace> M-d M-<backspace> C-k C-o C-t RET TAB M-u M-l M-c M-; M-/ M-SPC M-^ M-m M-{ M-}
 M-q C-M-f C-M-b C-M-k <backtab> M-<up> M-<down> C-SPC C-SPC C-x|C-x C-x|h C-w M-w C-y C-y M-y
 C-/ C-/ M-_ C-g <left> <right> <up> <down> <home> <end> <pgup> <pgdn> C-x|2 C-x|3 C-x|o C-x|0

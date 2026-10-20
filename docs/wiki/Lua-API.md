@@ -60,7 +60,7 @@ before the global keys:
 | `"wdired"` | A listing whose file names are being edited, after `C-x C-q` |
 | `"grep"` | The results of a project search (`C-x p g`) or of occur (`M-s o`) |
 | `"compilation"` | The output of `M-x compile` and `M-&` |
-| `"sidebar"` | The side panel opened with `C-b` |
+| `"sidebar"` | The side panel opened with `C-b`: its Tree, Favorites, Buffers and Outline tabs |
 
 ```lua
 nem.bind("k", "dired-do-delete", "dired")     -- k deletes, as D does

@@ -664,6 +664,7 @@ func (e *Editor) keepPromptWindow() {
 // apart - a prompt used to build its own frame separately and that duplication
 // was already diverging.
 func (e *Editor) frame() ui.Frame {
+	e.sidebarSync()
 	// The editor owns the name map, so it is the only thing that can tell the
 	// renderer what a path-less buffer is called.
 	f := ui.Frame{

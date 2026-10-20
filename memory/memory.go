@@ -67,12 +67,16 @@ type Memory struct {
 	// Bookmarks are the files bookmarked, in the order they were added.
 	Bookmarks []string `json:"bookmarks,omitempty"`
 
-	// DirBookmarks are the directories bookmarked, by name.
+	// DirBookmarks are the directories bookmarked, by name; Links the web
+	// addresses, by name; Tools the commands, by name. They are the
+	// favourites of the side panel.
 	DirBookmarks map[string]string `json:"dir_bookmarks,omitempty"`
+	Links        map[string]string `json:"links,omitempty"`
+	Tools        map[string]string `json:"tools,omitempty"`
 
-	// unmarkedDirs are directory bookmarks removed this session, as unmarked
-	// is for files.
-	unmarkedDirs map[string]bool
+	// gone are the named favourites removed this session, as "kind/name",
+	// so that saving does not bring them back from the copy on disk.
+	gone map[string]bool
 
 	// unmarked are bookmarks removed this session, kept so that saving does
 	// not bring them back from the copy on disk.
@@ -100,7 +104,7 @@ func Load(dir string) (*Memory, error) {
 	m.History, m.Recent, m.Places, m.Projects = disk.History, disk.Recent, disk.Places, disk.Projects
 	m.Languages = disk.Languages
 	m.Bookmarks = disk.Bookmarks
-	m.DirBookmarks = disk.DirBookmarks
+	m.DirBookmarks, m.Links, m.Tools = disk.DirBookmarks, disk.Links, disk.Tools
 	return m, nil
 }
 
@@ -185,22 +189,44 @@ func (m *Memory) LanguageOf(path string) string {
 	return m.Languages[path].Name
 }
 
-// SetDirBookmark bookmarks dir under name, replacing any bookmark of that name.
-func (m *Memory) SetDirBookmark(name, dir string) {
-	delete(m.unmarkedDirs, name)
-	if m.DirBookmarks == nil {
-		m.DirBookmarks = map[string]string{}
+// The kinds of named favourite.
+const (
+	KindDir  = "dir"
+	KindLink = "link"
+	KindTool = "tool"
+)
+
+// named is the map holding favourites of a kind.
+func (m *Memory) named(kind string) *map[string]string {
+	switch kind {
+	case KindLink:
+		return &m.Links
+	case KindTool:
+		return &m.Tools
 	}
-	m.DirBookmarks[name] = dir
+	return &m.DirBookmarks
 }
 
-// RemoveDirBookmark deletes the directory bookmark called name.
-func (m *Memory) RemoveDirBookmark(name string) {
-	delete(m.DirBookmarks, name)
-	if m.unmarkedDirs == nil {
-		m.unmarkedDirs = map[string]bool{}
+// diskNamed is the favourites of a kind in a memory read from disk.
+func diskNamed(d *Memory, kind string) map[string]string { return *d.named(kind) }
+
+// SetNamed adds a favourite of kind under name, replacing one of that name.
+func (m *Memory) SetNamed(kind, name, value string) {
+	delete(m.gone, kind+"/"+name)
+	mp := m.named(kind)
+	if *mp == nil {
+		*mp = map[string]string{}
 	}
-	m.unmarkedDirs[name] = true
+	(*mp)[name] = value
+}
+
+// RemoveNamed deletes the favourite of kind called name.
+func (m *Memory) RemoveNamed(kind, name string) {
+	delete(*m.named(kind), name)
+	if m.gone == nil {
+		m.gone = map[string]bool{}
+	}
+	m.gone[kind+"/"+name] = true
 }
 
 // AddBookmark adds the file path to the bookmarks, if it is not there.
@@ -262,12 +288,15 @@ func (m *Memory) Save() error {
 				m.Bookmarks = append(m.Bookmarks, p)
 			}
 		}
-		for name, dir := range disk.DirBookmarks {
-			if _, ok := m.DirBookmarks[name]; !ok && !m.unmarkedDirs[name] {
-				if m.DirBookmarks == nil {
-					m.DirBookmarks = map[string]string{}
+		for _, kind := range []string{KindDir, KindLink, KindTool} {
+			mine := m.named(kind)
+			for name, val := range diskNamed(disk, kind) {
+				if _, ok := (*mine)[name]; !ok && !m.gone[kind+"/"+name] {
+					if *mine == nil {
+						*mine = map[string]string{}
+					}
+					(*mine)[name] = val
 				}
-				m.DirBookmarks[name] = dir
 			}
 		}
 		trimPlaces(m.Places)

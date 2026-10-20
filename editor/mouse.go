@@ -98,8 +98,13 @@ func (e *Editor) handleMouse(ev *tcell.EventMouse) {
 			return
 		}
 		win := cell.Win
-		e.active = win
 		e.mouse.win = win
+		// A click in the side panel picks what is under it, and starts no drag.
+		if win == e.side && e.sideOpen() {
+			e.sidebarClick(cell.Pos)
+			return
+		}
+		e.active = win
 		win.Pt = cell.Pos
 		// The mark goes where the press was, but the region is not shown until
 		// the pointer moves: a click alone selects nothing, as in emacs.

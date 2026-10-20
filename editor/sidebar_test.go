@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Borderliner/nem/text"
 )
 
 // sideProject makes a directory with a file, a subdirectory holding another,
@@ -51,7 +53,7 @@ func TestSidebarTogglesAsAWindow(t *testing.T) {
 	if !e.sideOpen() || e.active != e.side {
 		t.Fatal("C-b did not open the panel and move into it")
 	}
-	if got := sideText(e); !strings.Contains(got, "Tree") || !strings.Contains(got, "Bookmarks") {
+	if got := sideText(e); !strings.Contains(got, "Tree") || !strings.Contains(got, "Favs") || !strings.Contains(got, "Bufs") || !strings.Contains(got, "Outline") {
 		t.Errorf("panel lacks its tabs:\n%s", got)
 	}
 	press(t, e, "C-b")
@@ -180,5 +182,104 @@ func TestDirectoryBookmarksPersistAcrossSessions(t *testing.T) {
 	}
 	if _, ok := e2.bookmarks["old"]; ok {
 		t.Error("a deleted bookmark came back")
+	}
+}
+
+func TestSidebarBufferAndOutlineTabs(t *testing.T) {
+	e, dir := sideProject(t)
+	goFile := filepath.Join(dir, "m.go")
+	if err := os.WriteFile(goFile, []byte("package m\n\nfunc One() {}\n\nfunc Two() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b, err := e.OpenFile(goFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.VisitOpened(b)
+	main := e.active
+	press(t, e, "C-b", "3")
+	if got := sideText(e); !strings.Contains(got, "a.txt") || !strings.Contains(got, "m.go") {
+		t.Fatalf("the Buffers tab lacks the open files:\n%s", got)
+	}
+	gotoSideLine(t, e, "a.txt")
+	press(t, e, "RET")
+	if e.active != main || e.active.Buf.Path() != filepath.Join(dir, "a.txt") {
+		t.Fatalf("RET on a buffer showed %q", e.active.Buf.Path())
+	}
+	press(t, e, "C-b", "4") // the outline of a.txt: nothing to list
+	press(t, e, "2")
+	press(t, e, "3")
+	gotoSideLine(t, e, "m.go")
+	press(t, e, "RET")
+	press(t, e, "C-b", "4")
+	if got := sideText(e); !strings.Contains(got, "One") || !strings.Contains(got, "Two") {
+		t.Fatalf("the Outline tab lacks the definitions:\n%s", got)
+	}
+	gotoSideLine(t, e, "Two")
+	press(t, e, "RET")
+	if e.active != main || e.active.Pt.Line != 4 {
+		t.Errorf("RET on a definition put point on line %d, want 4", e.active.Pt.Line)
+	}
+}
+
+func TestSidebarOutlineFollowsTheFileInFront(t *testing.T) {
+	e, dir := sideProject(t)
+	goFile := filepath.Join(dir, "m.go")
+	if err := os.WriteFile(goFile, []byte("package m\n\nfunc Only() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	press(t, e, "C-b", "4", "S-<right>")
+	b, _ := e.OpenFile(goFile)
+	e.VisitOpened(b)
+	e.Redraw()
+	if !strings.Contains(sideText(e), "Only") {
+		t.Errorf("the outline did not follow the new file:\n%s", sideText(e))
+	}
+}
+
+func TestSidebarFavoritesHoldLinksAndTools(t *testing.T) {
+	e, scr := newTestEditor(t)
+	if err := e.UseStateDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	press(t, e, "C-b", "2")
+	feed(t, scr, txt("w"), txt("Go"), key(t, "RET"), txt("https://go.dev"), key(t, "RET"))
+	press(t, e, "a")
+	feed(t, scr, txt("t"), txt("Test"), key(t, "RET"), txt("go test ./..."), key(t, "RET"))
+	press(t, e, "a")
+	got := sideText(e)
+	for _, want := range []string{"Files", "Directories", "WWW", "Tools", "Go", "Test"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("the Favorites tab lacks %q:\n%s", want, got)
+		}
+	}
+	if e.mem.Links["Go"] != "https://go.dev" || e.mem.Tools["Test"] != "go test ./..." {
+		t.Errorf("links %v tools %v", e.mem.Links, e.mem.Tools)
+	}
+	gotoSideLine(t, e, "WWW")
+	press(t, e, "RET") // folds the group shut
+	if strings.Contains(sideText(e), "Go") && strings.Contains(sideText(e), "https") {
+		t.Error("the WWW group did not fold")
+	}
+	press(t, e, "RET")
+	gotoSideLine(t, e, "  Go")
+	press(t, e, "d")
+	if _, ok := e.mem.Links["Go"]; ok {
+		t.Error("d did not remove the link")
+	}
+}
+
+func TestSidebarWithIconsAndClicks(t *testing.T) {
+	e, _ := sideProject(t)
+	e.SetIcons(true)
+	press(t, e, "C-b")
+	if !strings.ContainsRune(sideText(e), '\uf0f6') && !strings.ContainsRune(sideText(e), '\uf016') {
+		t.Errorf("no file icon in the tree:\n%s", sideText(e))
+	}
+	e.Redraw()
+	cols := e.sidebar.tabCols
+	e.sidebarClick(text.Pos{Line: 0, Col: text.RuneIdx(cols[sideBuffers][0] + 1)})
+	if e.sidebar.tab != sideBuffers {
+		t.Errorf("clicking the third tab showed tab %d", e.sidebar.tab)
 	}
 }

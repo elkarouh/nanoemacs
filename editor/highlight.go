@@ -32,6 +32,9 @@ func (e *Editor) spansOf(b *text.Buffer, line int) []syntax.Span {
 		}
 		return st.spans(line)
 	}
+	if e.sidebar != nil && b == e.sideBuf {
+		return e.sidebar.classes[line]
+	}
 	if st := e.grepOf(b); st != nil {
 		return st.lineSpans(line)
 	}

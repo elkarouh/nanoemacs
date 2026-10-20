@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Borderliner/nem/command"
+	"github.com/Borderliner/nem/memory"
 )
 
 // Bookmarks are dired's, as emacs has them: C-x r m names the directory of the
@@ -120,13 +121,13 @@ func (e *Editor) bookmarkNames() []string {
 // setDirBookmark bookmarks dir under name and remembers it for later sessions.
 func (e *Editor) setDirBookmark(name, dir string) {
 	e.bookmarks[name] = dir
-	e.mem.SetDirBookmark(name, dir)
+	e.mem.SetNamed(memory.KindDir, name, dir)
 	e.saveMemory()
 }
 
 // deleteDirBookmark removes the bookmark called name, here and in the memory.
 func (e *Editor) deleteDirBookmark(name string) {
 	delete(e.bookmarks, name)
-	e.mem.RemoveDirBookmark(name)
+	e.mem.RemoveNamed(memory.KindDir, name)
 	e.saveMemory()
 }

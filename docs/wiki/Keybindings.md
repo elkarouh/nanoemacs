@@ -19,7 +19,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 |---|---|---|
 | `C-f` | `forward-char` | Move point one grapheme forward. |
 | `<right>` | `right-char` | Move one character to the right: forward, or backward in a line that reads right to left. |
-| `C-b` | `sidebar-toggle` | Open the side panel, with the project's directory tree and the bookmarks, and move into it; in the panel, close it. |
+| `C-b` | `sidebar-toggle` | Open the side panel, with the directory tree, favourites, open buffers and outline, and move into it; in the panel, close it. |
 | `<left>` | `left-char` | Move one character to the left: backward, or forward in a line that reads right to left. |
 | `C-n` `<down>` | `next-line` | Move point down one line, keeping the goal column. |
 | `C-p` `<up>` | `previous-line` | Move point up one line, keeping the goal column. |
@@ -174,7 +174,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `M-.` `C-x <right>` | `next-buffer` | Show the next buffer in the tab strip in the current window. |
 | `M-,` `C-x <left>` | `previous-buffer` | Show the previous buffer in the tab strip in the current window. |
 | `C-x k` | `kill-buffer` | Kill the current buffer, confirming if it is modified. |
-| `C-x r f` | `bookmark-file` | Bookmark this buffer's file, to find it in the side panel's Bookmarks tab; again to remove it. |
+| `C-x r f` | `bookmark-file` | Add this buffer's file to the favourites, shown in the side panel's Favorites tab; again to remove it. |
 | `C-x C-b` | `list-buffers` | Display a listing of every live buffer. |
 | `C-x d` | `dired` | List a directory, to browse it and act on its files. |
 | `C-x C-j` | `dired-jump` | List the directory of the current file, with point on the file. |
@@ -318,17 +318,23 @@ In the panel `C-b` opens on the left, with its Tree and Bookmarks tabs. Bind a k
 
 | Key | Command | Does |
 |---|---|---|
-| `TAB` | `sidebar-switch-tab` | Switch the side panel between its Tree and Bookmarks tabs. |
-| `RET` `o` | `sidebar-open` | Open the entry at point: expand or close a directory in the tree, visit a file or a bookmark in the other window. |
-| `b` | `sidebar-bookmark` | Bookmark the file at point in the side panel (a directory is bookmarked under its name); again to remove it. |
-| `d` | `sidebar-unbookmark` | Remove the bookmark at point in the side panel's Bookmarks tab. |
+| `TAB` | `sidebar-next-tab` | Show the side panel's next tab. |
+| `<backtab>` | `sidebar-previous-tab` | Show the side panel's previous tab. |
+| `1` | `sidebar-tree` | Show the side panel's Tree tab. |
+| `2` | `sidebar-favorites` | Show the side panel's Favorites tab. |
+| `3` | `sidebar-buffers` | Show the side panel's Buffers tab. |
+| `4` | `sidebar-outline` | Show the side panel's Outline tab. |
+| `RET` `o` | `sidebar-open` | Open the entry at point: fold or unfold a directory or group, show a file, buffer or definition in the other window, open a web link, run a tool. |
+| `a` | `sidebar-add` | Add a favourite: a file, a directory, a web link or a tool. |
+| `b` | `sidebar-bookmark` | Add the file or directory at point in the side panel's tree to the favourites; again to remove it. |
+| `d` `k` | `sidebar-remove` | Remove the favourite at point in the side panel, or kill the buffer there. |
 | `r` | `sidebar-set-root` | Make the directory at point the root of the side panel's tree. |
 | `^` | `sidebar-parent` | Make the parent of the tree's root the root. |
 | `.` | `sidebar-toggle-hidden` | Show or hide dotfiles in the side panel's tree. |
-| `g` | `sidebar-refresh` | Read the side panel's directories and bookmarks again. |
+| `g` | `sidebar-refresh` | Read the side panel's directories and favourites again. |
 | `n` | `next-line` | Move point down one line, keeping the goal column. |
 | `p` | `previous-line` | Move point up one line, keeping the goal column. |
-| `q` | `sidebar-toggle` | Open the side panel, with the project's directory tree and the bookmarks, and move into it; in the panel, close it. |
+| `q` | `sidebar-toggle` | Open the side panel, with the directory tree, favourites, open buffers and outline, and move into it; in the panel, close it. |
 
 ## Compilation output
 

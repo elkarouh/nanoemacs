@@ -179,7 +179,7 @@ func (e *Editor) symbolSpans(b *text.Buffer, line int) []ui.SymbolSpan {
 		out = append(out, st.lines[line]...)
 	}
 	if e.sidebar != nil && b == e.sideBuf {
-		out = append(out, e.sidebar.spans[line]...)
+		out = append(out, e.sidebar.marks[line]...)
 	}
 	active := e.symbols[b]
 	if len(active) == 0 || b == nil || line < 0 || line >= b.NumLines() {

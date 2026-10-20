@@ -16,8 +16,11 @@ import (
 // when it quits: a file is visited, a directory is listed in dired. Quitting
 // yazi without choosing anything changes nothing.
 
-// yaziRun runs yazi on start with its chooser writing to chooser, on nem's
-// terminal. It is a variable so the test binary can replace it: a test run
+// yaziCwdFile is where yazi writes the directory it ended in, beside chooser.
+func yaziCwdFile(chooser string) string { return chooser + ".cwd" }
+
+// yaziRun runs yazi on start with its chooser writing to chooser, and the
+// directory it ended in to yaziCwdFile(chooser), on nem's terminal. It is a variable so the test binary can replace it: a test run
 // must never start a real yazi. See TestMain.
 var yaziRun = runYazi
 
@@ -26,7 +29,7 @@ func runYazi(start, chooser string) error {
 	if err != nil {
 		return errors.New("yazi is not installed: nem looks for it on the PATH")
 	}
-	cmd := exec.Command(bin, "--chooser-file="+chooser, start)
+	cmd := exec.Command(bin, "--chooser-file="+chooser, "--cwd-file="+yaziCwdFile(chooser), start)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("yazi: %w", err)
@@ -47,7 +50,15 @@ func (e *Editor) yaziStart() string {
 
 // ExitDir is the directory a shell should be left in when nem exits: the one
 // the active buffer lists or its file is in, else the working directory.
-func (e *Editor) ExitDir() string { return e.yaziStart() }
+//
+// Where yazi last ended counts as the latest directory visited, until another
+// buffer is shown.
+func (e *Editor) ExitDir() string {
+	if e.yaziEnd != "" && e.active.Buf == e.yaziEndBuf {
+		return e.yaziEnd
+	}
+	return e.yaziStart()
+}
 
 // yazi runs yazi on the active buffer and opens what it chose.
 func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
@@ -64,6 +75,9 @@ func (e *Editor) StartYazi(dir string) {
 	if e.active.Buf != before {
 		return
 	}
+	if e.yaziEnd != "" {
+		dir = e.yaziEnd // where yazi was left
+	}
 	if b, derr := e.Dired(dir); derr == nil {
 		e.active.Visit(b)
 	}
@@ -78,6 +92,7 @@ func (e *Editor) yaziAt(start string) error {
 	chooser := f.Name()
 	f.Close()
 	defer os.Remove(chooser)
+	defer os.Remove(yaziCwdFile(chooser))
 
 	if e.scr != nil {
 		if err := e.scr.Suspend(); err != nil {
@@ -93,6 +108,15 @@ func (e *Editor) yaziAt(start string) error {
 	}
 	if runErr != nil {
 		return runErr
+	}
+	// Where yazi was left, for ExitDir, unless what it chose is opened below.
+	if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
+		before := e.active.Buf
+		defer func() {
+			if dir := strings.TrimSpace(string(d)); dir != "" && e.active.Buf == before {
+				e.yaziEnd, e.yaziEndBuf = dir, before
+			}
+		}()
 	}
 
 	f, err = os.Open(chooser)

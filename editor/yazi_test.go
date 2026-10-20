@@ -83,3 +83,31 @@ func TestYaziOpensInTheDirectoryOfTheFile(t *testing.T) {
 		t.Errorf("yazi started on %q, want %q", got, dir)
 	}
 }
+
+func TestExitDirIsWhereYaziWasLeft(t *testing.T) {
+	dir, other := t.TempDir(), t.TempDir()
+	old := yaziRun
+	t.Cleanup(func() { yaziRun = old })
+	yaziRun = func(start, chooser string) error {
+		return os.WriteFile(yaziCwdFile(chooser), []byte(other+"\n"), 0o644)
+	}
+	e, _ := newTestEditor(t)
+	b, err := e.Dired(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.active.Visit(b)
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.ExitDir(); got != other {
+		t.Errorf("ExitDir = %q, want %q", got, other)
+	}
+	// Showing another buffer takes over.
+	third := t.TempDir()
+	b2, _ := e.Dired(third)
+	e.active.Visit(b2)
+	if got := e.ExitDir(); got != third {
+		t.Errorf("after switching buffers ExitDir = %q, want %q", got, third)
+	}
+}

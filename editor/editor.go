@@ -147,6 +147,10 @@ type Editor struct {
 	// See rgrun.go.
 	rgs    map[*text.Buffer]*rgState
 	rgKeys *keymap.Map
+	// yaziEnd is the directory yazi was last left in, and yaziEndBuf the buffer
+	// that was showing then. See yazi.go.
+	yaziEnd    string
+	yaziEndBuf *text.Buffer
 	// bookmarks names the directories dired bookmarks, by name. See
 	// bookmarks.go.
 	bookmarks map[string]string

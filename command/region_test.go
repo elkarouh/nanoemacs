@@ -60,7 +60,8 @@ func TestRegisterRegionRegistersEveryCommand(t *testing.T) {
 	}
 	want := []string{
 		"exchange-point-and-mark", "kill-region", "kill-ring-save",
-		"mark-whole-buffer", "redo", "select-to-end-of-line",
+		"mark-whole-buffer", "redo", "select-to-beginning-of-line",
+		"select-to-end-of-line",
 		"set-mark-command", "undo", "yank", "yank-pop",
 	}
 	if got := r.Names(); !slices.Equal(got, want) {
@@ -177,33 +178,24 @@ func TestYankPopDoesNotActivateTheRegion(t *testing.T) {
 	}
 }
 
-// C-w and M-w work on the region whether or not it is highlighted - that is how
-// C-y C-w takes back what was just yanked - and both leave it inactive.
-func TestKillAndCopyWorkOnAnInactiveRegion(t *testing.T) {
+// With the region inactive - nothing highlighted - C-w and M-w take point's
+// whole line instead, however stale the mark.
+func TestKillAndCopyTakeTheLineOnAnInactiveRegion(t *testing.T) {
 	for _, tc := range []struct {
 		command, wantText string
 	}{
-		{"kill-region", "hello"},
+		{"kill-region", ""},
 		{"kill-ring-save", "hello world"},
 	} {
 		t.Run(tc.command, func(t *testing.T) {
 			r, f := regionSetup(t, "hello world")
 			f.Buf().SetMark(text.Pos{Line: 0, Col: 5})
 			f.SetPoint(text.Pos{Line: 0, Col: 11})
-			if f.Buf().MarkActive() {
-				t.Fatal("precondition: the region should be inactive")
-			}
 
 			runRegion(t, r, f, tc.command)
 
 			if got := f.Text(); got != tc.wantText {
 				t.Errorf("text = %q, want %q", got, tc.wantText)
-			}
-			if regionHasEcho(f, "No mark set") {
-				t.Errorf("%s refused an inactive region: %q", tc.command, f.Echoes)
-			}
-			if f.Buf().MarkActive() {
-				t.Errorf("MarkActive() = true after %s, want false", tc.command)
 			}
 		})
 	}
@@ -225,6 +217,7 @@ func TestKillRegionNormalisesEndpointOrder(t *testing.T) {
 			r, f := regionSetup(t, "hello world")
 			f.SetPoint(tc.point)
 			f.Buf().SetMark(tc.mark)
+			f.Buf().ActivateMark()
 
 			runRegion(t, r, f, "kill-region")
 
@@ -259,6 +252,7 @@ func TestKillRingSaveLeavesBufferByteIdentical(t *testing.T) {
 			r, f := regionSetup(t, "hello world")
 			f.SetPoint(tc.point)
 			f.Buf().SetMark(tc.mark)
+			f.Buf().ActivateMark()
 			before := f.Text()
 
 			runRegion(t, r, f, "kill-ring-save")
@@ -284,6 +278,7 @@ func TestKillRegionSpanningLines(t *testing.T) {
 	r, f := regionSetup(t, "one", "two", "three")
 	f.SetPoint(text.Pos{Line: 0, Col: 1})
 	f.Buf().SetMark(text.Pos{Line: 2, Col: 2})
+	f.Buf().ActivateMark()
 
 	runRegion(t, r, f, "kill-region")
 
@@ -303,6 +298,7 @@ func TestKillRegionWithEmptyRegionIsANoOp(t *testing.T) {
 	r, f := regionSetup(t, "hello")
 	f.SetPoint(text.Pos{Line: 0, Col: 3})
 	f.Buf().SetMark(text.Pos{Line: 0, Col: 3})
+	f.Buf().ActivateMark()
 
 	runRegion(t, r, f, "kill-region")
 
@@ -321,10 +317,12 @@ func TestConsecutiveKillRegionsAccumulateIntoOneEntry(t *testing.T) {
 
 	f.SetPoint(text.Pos{Line: 0, Col: 0})
 	f.Buf().SetMark(text.Pos{Line: 0, Col: 2})
+	f.Buf().ActivateMark()
 	runRegion(t, r, f, "kill-region")
 
 	f.SetPoint(text.Pos{Line: 0, Col: 0})
 	f.Buf().SetMark(text.Pos{Line: 0, Col: 2})
+	f.Buf().ActivateMark()
 	runRegion(t, r, f, "kill-region")
 
 	if got, want := f.Text(), "ef"; got != want {
@@ -659,36 +657,18 @@ func TestUndoMovesPointToTheChange(t *testing.T) {
 
 // --- refusing when there is no mark ---
 
-// "Destructive by default" was the real bug here: without a mark, C-w used to
-// kill everything from the buffer start to point. These tests assert the buffer
-// and the kill ring are untouched, not merely that a message appeared — a test
-// that only checked the message would still pass if the kill went through.
-func TestRegionCommandsRefuseWithoutAMark(t *testing.T) {
-	for _, name := range []string{"kill-region", "kill-ring-save", "exchange-point-and-mark"} {
-		t.Run(name, func(t *testing.T) {
-			r, f := regionSetup(t, "hello world")
-			f.SetPoint(text.Pos{Line: 0, Col: 5})
-			if f.Buf().HasMark() {
-				t.Fatal("a fresh buffer must have no mark")
-			}
-
-			if err := r.Run(name, f); err != nil {
-				t.Fatalf("%s should refuse through Echo, not return an error: %v", name, err)
-			}
-
-			if got, want := f.Text(), "hello world"; got != want {
-				t.Errorf("text = %q, want it byte-identical at %q", got, want)
-			}
-			if got, want := f.Point(), (text.Pos{Line: 0, Col: 5}); got != want {
-				t.Errorf("point = %+v, want it unmoved at %+v", got, want)
-			}
-			if got := f.Ring().Len(); got != 0 {
-				t.Errorf("kill ring holds %d entries, want 0: a refused command must not kill", got)
-			}
-			if !regionHasEcho(f, "No mark set in this buffer") {
-				t.Errorf("Echoes = %q, want emacs's \"No mark set in this buffer\"", f.Echoes)
-			}
-		})
+// exchange-point-and-mark still refuses without a mark, touching nothing.
+func TestExchangeRefusesWithoutAMark(t *testing.T) {
+	r, f := regionSetup(t, "hello world")
+	f.SetPoint(text.Pos{Line: 0, Col: 5})
+	if err := r.Run("exchange-point-and-mark", f); err != nil {
+		t.Fatalf("should refuse through Echo, not return an error: %v", err)
+	}
+	if got := f.Point(); got != (text.Pos{Line: 0, Col: 5}) {
+		t.Errorf("point = %+v, want it unmoved", got)
+	}
+	if !regionHasEcho(f, "No mark set in this buffer") {
+		t.Errorf("Echoes = %q, want emacs's \"No mark set in this buffer\"", f.Echoes)
 	}
 }
 
@@ -724,23 +704,15 @@ func TestMarkSetAtOriginCountsAsSet(t *testing.T) {
 	}
 }
 
-// After ClearMark the region commands must refuse again, so the flag is genuinely
-// consulted rather than being set once and assumed forever.
-func TestClearMarkMakesRegionCommandsRefuseAgain(t *testing.T) {
+// After ClearMark, C-w is back to killing the line rather than a stale region.
+func TestClearMarkMakesKillTakeTheLineAgain(t *testing.T) {
 	r, f := regionSetup(t, "hello world")
 	f.Buf().SetMark(text.Pos{Line: 0, Col: 0})
 	f.Buf().ClearMark()
 	f.SetPoint(text.Pos{Line: 0, Col: 5})
-
-	if err := r.Run("kill-region", f); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if got, want := f.Text(), "hello world"; got != want {
-		t.Errorf("text = %q, want it unchanged at %q", got, want)
-	}
-	if !regionHasEcho(f, "No mark set in this buffer") {
-		t.Errorf("Echoes = %q, want a refusal", f.Echoes)
+	runRegion(t, r, f, "kill-region")
+	if got := f.Text(); got != "" {
+		t.Errorf("text = %q, want the line killed", got)
 	}
 }
 

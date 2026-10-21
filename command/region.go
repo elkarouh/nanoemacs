@@ -28,6 +28,12 @@ func RegisterRegion(r *Registry) error {
 			Interactive: true,
 		},
 		{
+			Name:        "select-to-beginning-of-line",
+			Doc:         "Select from point to the beginning of the line; a selection already active is extended.",
+			Fn:          selectToBeginningOfLine,
+			Interactive: true,
+		},
+		{
 			Name:        "exchange-point-and-mark",
 			Doc:         "Put point where the mark is, and the mark where point was.",
 			Fn:          exchangePointAndMark,
@@ -35,13 +41,13 @@ func RegisterRegion(r *Registry) error {
 		},
 		{
 			Name:        "kill-region",
-			Doc:         "Kill the text between point and mark, saving it on the kill ring.",
+			Doc:         "Kill the region, or the whole line if nothing is selected, saving it on the kill ring.",
 			Fn:          killRegion,
 			Interactive: true,
 		},
 		{
 			Name:        "kill-ring-save",
-			Doc:         "Save the text between point and mark on the kill ring without removing it.",
+			Doc:         "Save the region, or the whole line if nothing is selected, on the kill ring without removing it.",
 			Fn:          killRingSave,
 			Interactive: true,
 		},
@@ -171,6 +177,15 @@ func selectToEndOfLine(e Env) error {
 	return moveEndOfLine(e)
 }
 
+func selectToBeginningOfLine(e Env) error {
+	b := e.Buf()
+	if !b.MarkActive() {
+		b.SetMark(e.Win().Pt)
+		b.ActivateMark()
+	}
+	return moveBeginningOfLine(e)
+}
+
 func exchangePointAndMark(e Env) error {
 	if !requireMark(e) {
 		return nil
@@ -186,12 +201,26 @@ func exchangePointAndMark(e Env) error {
 	return nil
 }
 
-func killRegion(e Env) error {
-	if !requireMark(e) {
-		return nil
-	}
-	lo, hi := region(e)
+// wholeLine is the span C-w and M-w act on when nothing is selected: point's
+// line with its newline, or up to the end of the buffer on the last line.
+func wholeLine(e Env) (lo, hi text.Pos) {
 	b := e.Buf()
+	line := e.Win().Pt.Line
+	lo = text.Pos{Line: line}
+	if line+1 < b.NumLines() {
+		return lo, text.Pos{Line: line + 1}
+	}
+	return lo, text.Pos{Line: line, Col: b.Line(line).Len()}
+}
+
+func killRegion(e Env) error {
+	b := e.Buf()
+	var lo, hi text.Pos
+	if b.MarkActive() {
+		lo, hi = region(e)
+	} else {
+		lo, hi = wholeLine(e)
+	}
 
 	// The ring decides whether this extends a kill run or starts a new entry,
 	// and an empty region kills nothing at all.
@@ -208,10 +237,12 @@ func killRegion(e Env) error {
 // killRingSave is M-w: it copies the region and must leave the buffer and point
 // exactly as they were.
 func killRingSave(e Env) error {
-	if !requireMark(e) {
-		return nil
+	var lo, hi text.Pos
+	if e.Buf().MarkActive() {
+		lo, hi = region(e)
+	} else {
+		lo, hi = wholeLine(e)
 	}
-	lo, hi := region(e)
 	e.KillForward(string(e.Buf().Text(lo, hi)))
 	// M-w changes nothing, so the rule in dispatch that ends a selection after an
 	// edit does not apply - but a copy is still the end of the selection, as in

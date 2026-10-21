@@ -109,8 +109,8 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `kill-buffer` | `C-x k` | Kill the current buffer, confirming if it is modified. |
 | `kill-compilation` | compilation: `C-c C-k` | Stop the running compilation. |
 | `kill-line` | `C-k` | Kill to the end of the line, or the newline if already there. |
-| `kill-region` | `C-w` | Kill the text between point and mark, saving it on the kill ring. |
-| `kill-ring-save` | `M-w` | Save the text between point and mark on the kill ring without removing it. |
+| `kill-region` | `C-w` | Kill the region, or the whole line if nothing is selected, saving it on the kill ring. |
+| `kill-ring-save` | `M-w` | Save the region, or the whole line if nothing is selected, on the kill ring without removing it. |
 | `kill-sexp` | `C-M-k` | Kill the balanced expression after point. |
 | `kill-some-buffers` |  | Ask about each buffer in turn and kill the ones you answer y to; q stops asking. *scratch* is kept. |
 | `kill-word` | `M-d` | Kill forward to the end of the next word. |
@@ -175,6 +175,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `save-some-buffers` | `C-x s` | Offer to save each modified buffer. |
 | `scroll-down-command` | `M-v` `<pgup>` | Move backward one screenful. |
 | `scroll-up-command` | `C-v` `<pgdn>` | Move forward one screenful. |
+| `select-to-beginning-of-line` | `S-<home>` | Select from point to the beginning of the line; a selection already active is extended. |
 | `select-to-end-of-line` | `S-<end>` | Select from point to the end of the line; a selection already active is extended. |
 | `self-insert-command` |  | Insert the character just typed. |
 | `set-language` |  | Colour this buffer as another language, remembered for its file; its own language undoes it. |
@@ -239,4 +240,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-229 commands in all.
+230 commands in all.

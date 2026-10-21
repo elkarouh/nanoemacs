@@ -105,10 +105,11 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 |---|---|---|
 | `C-SPC` | `set-mark-command` | Set the mark where point is. |
 | `S-<end>` | `select-to-end-of-line` | Select from point to the end of the line; a selection already active is extended. |
+| `S-<home>` | `select-to-beginning-of-line` | Select from point to the beginning of the line; a selection already active is extended. |
 | `C-x C-x` | `exchange-point-and-mark` | Put point where the mark is, and the mark where point was. |
 | `C-x h` | `mark-whole-buffer` | Put point at the start of the buffer and the mark at the end. |
-| `C-w` | `kill-region` | Kill the text between point and mark, saving it on the kill ring. |
-| `M-w` | `kill-ring-save` | Save the text between point and mark on the kill ring without removing it. |
+| `C-w` | `kill-region` | Kill the region, or the whole line if nothing is selected, saving it on the kill ring. |
+| `M-w` | `kill-ring-save` | Save the region, or the whole line if nothing is selected, on the kill ring without removing it. |
 | `C-y` | `yank` | Insert the current kill-ring entry at point. |
 | `M-y` | `yank-pop` | Replace the text just yanked with the next-older kill-ring entry. |
 

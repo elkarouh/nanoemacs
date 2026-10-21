@@ -145,7 +145,7 @@ seven.
   never part of the selection. Hold Shift to use the terminal's own selection.
 - **Mark and kill ring** — `C-SPC` sets the mark and the region is shown; `C-x h`
   selects everything. `C-w` kills, `M-w` copies, `C-y` yanks and `M-y` rotates
-  through earlier kills. Consecutive kills gather into one, so `C-k C-k C-y`
+  through earlier kills. With nothing selected, `C-w` and `M-w` take the whole line, and `S-<home>` `S-<end>` select to either end of it. Consecutive kills gather into one, so `C-k C-k C-y`
   gives back what you took. Typing over a selection replaces it, in one undo.
 - **Undo** — linear undo and redo, `C-/` and `M-_`; typing coalesces into one
   step, and a command or a Lua script's edits undo as one.

@@ -648,3 +648,39 @@ func TestSelectToEndOfLine(t *testing.T) {
 		t.Errorf("anchor moved to %v", f.Buf().Mark())
 	}
 }
+
+func TestSelectToBeginningOfLine(t *testing.T) {
+	f := newMotionFake(t, "first", "middle", "last line")
+	if err := command.RegisterRegion(f.Reg); err != nil {
+		t.Fatalf("RegisterRegion: %v", err)
+	}
+	f.SetPoint(text.Pos{Line: 1, Col: 4})
+	run(t, f, "select-to-beginning-of-line")
+	wantPoint(t, f, 1, 0)
+	if !f.Buf().MarkActive() || !f.Buf().Mark().Equal(text.Pos{Line: 1, Col: 4}) {
+		t.Errorf("mark = %v active=%v, want active at {1,4}", f.Buf().Mark(), f.Buf().MarkActive())
+	}
+}
+
+// With nothing selected, C-w and M-w act on point's whole line.
+func TestKillAndCopyTakeTheWholeLineWithoutASelection(t *testing.T) {
+	f := newMotionFake(t, "first", "middle", "last line")
+	if err := command.RegisterRegion(f.Reg); err != nil {
+		t.Fatalf("RegisterRegion: %v", err)
+	}
+	f.SetPoint(text.Pos{Line: 1, Col: 2})
+	run(t, f, "kill-ring-save")
+	if got := f.Text(); got != "first\nmiddle\nlast line" {
+		t.Errorf("copy changed the buffer: %q", got)
+	}
+	wantPoint(t, f, 1, 2)
+	run(t, f, "kill-region")
+	if got := f.Text(); got != "first\nlast line" {
+		t.Errorf("after kill: %q", got)
+	}
+	f.SetPoint(text.Pos{Line: 1, Col: 3})
+	run(t, f, "kill-region")
+	if got := f.Text(); got != "first\n" {
+		t.Errorf("after killing the last line: %q", got)
+	}
+}

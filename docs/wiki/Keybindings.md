@@ -104,6 +104,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | Key | Command | Does |
 |---|---|---|
 | `C-SPC` | `set-mark-command` | Set the mark where point is. |
+| `S-<end>` | `select-to-end-of-line` | Select from point to the end of the line; a selection already active is extended. |
 | `C-x C-x` | `exchange-point-and-mark` | Put point where the mark is, and the mark where point was. |
 | `C-x h` | `mark-whole-buffer` | Put point at the start of the buffer and the mark at the end. |
 | `C-w` | `kill-region` | Kill the text between point and mark, saving it on the kill ring. |

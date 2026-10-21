@@ -22,6 +22,12 @@ func RegisterRegion(r *Registry) error {
 			Interactive: true,
 		},
 		{
+			Name:        "select-to-end-of-line",
+			Doc:         "Select from point to the end of the line; a selection already active is extended.",
+			Fn:          selectToEndOfLine,
+			Interactive: true,
+		},
+		{
 			Name:        "exchange-point-and-mark",
 			Doc:         "Put point where the mark is, and the mark where point was.",
 			Fn:          exchangePointAndMark,
@@ -152,6 +158,17 @@ func setMarkCommand(e Env) error {
 	b.ActivateMark() // C-SPC is the deliberate act of starting a selection
 	e.Echo("Mark set")
 	return nil
+}
+
+// selectToEndOfLine is Shift-End: it starts a selection at point unless one is
+// already active, then moves to the end of the line, leaving the anchor behind.
+func selectToEndOfLine(e Env) error {
+	b := e.Buf()
+	if !b.MarkActive() {
+		b.SetMark(e.Win().Pt)
+		b.ActivateMark()
+	}
+	return moveEndOfLine(e)
 }
 
 func exchangePointAndMark(e Env) error {

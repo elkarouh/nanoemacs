@@ -175,6 +175,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `save-some-buffers` | `C-x s` | Offer to save each modified buffer. |
 | `scroll-down-command` | `M-v` `<pgup>` | Move backward one screenful. |
 | `scroll-up-command` | `C-v` `<pgdn>` | Move forward one screenful. |
+| `select-to-end-of-line` | `S-<end>` | Select from point to the end of the line; a selection already active is extended. |
 | `self-insert-command` |  | Insert the character just typed. |
 | `set-language` |  | Colour this buffer as another language, remembered for its file; its own language undoes it. |
 | `set-mark-command` | `C-@` | Set the mark where point is. |
@@ -238,4 +239,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-kill-buffer` |  | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-228 commands in all.
+229 commands in all.

@@ -60,8 +60,8 @@ func TestRegisterRegionRegistersEveryCommand(t *testing.T) {
 	}
 	want := []string{
 		"exchange-point-and-mark", "kill-region", "kill-ring-save",
-		"mark-whole-buffer", "redo", "set-mark-command", "undo", "yank",
-		"yank-pop",
+		"mark-whole-buffer", "redo", "select-to-end-of-line",
+		"set-mark-command", "undo", "yank", "yank-pop",
 	}
 	if got := r.Names(); !slices.Equal(got, want) {
 		t.Errorf("Names() = %q, want %q", got, want)

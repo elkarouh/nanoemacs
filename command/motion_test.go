@@ -628,3 +628,23 @@ func TestRecenterNeverSetsNegativeTop(t *testing.T) {
 		t.Fatalf("Top = %d, must never be negative", got)
 	}
 }
+
+func TestSelectToEndOfLine(t *testing.T) {
+	f := newMotionFake(t, "first", "middle", "last line")
+	if err := command.RegisterRegion(f.Reg); err != nil {
+		t.Fatalf("RegisterRegion: %v", err)
+	}
+	f.SetPoint(text.Pos{Line: 1, Col: 2})
+
+	run(t, f, "select-to-end-of-line")
+	wantPoint(t, f, 1, 6)
+	if !f.Buf().MarkActive() || !f.Buf().Mark().Equal(text.Pos{Line: 1, Col: 2}) {
+		t.Errorf("mark = %v active=%v, want active at {1,2}", f.Buf().Mark(), f.Buf().MarkActive())
+	}
+
+	// A second press keeps the anchor.
+	run(t, f, "select-to-end-of-line")
+	if !f.Buf().Mark().Equal(text.Pos{Line: 1, Col: 2}) {
+		t.Errorf("anchor moved to %v", f.Buf().Mark())
+	}
+}

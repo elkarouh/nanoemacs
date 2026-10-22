@@ -677,6 +677,9 @@ func (e *Editor) bufferDir(b *text.Buffer) string {
 	if st := e.compileOf(b); st != nil {
 		return st.dir
 	}
+	if p := e.archives[b]; p != "" {
+		return filepath.Dir(p)
+	}
 	if b != nil && b.Path() != "" {
 		return filepath.Dir(b.Path())
 	}

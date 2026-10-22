@@ -285,3 +285,26 @@ func TestYaziListsAnArchiveInsteadOfRefusingIt(t *testing.T) {
 		t.Errorf("archive buffer = %q (read-only %v), want a listing with inner.txt", b.String(), b.ReadOnly())
 	}
 }
+
+func TestYaziStartsInTheDirectoryOfAnArchiveListing(t *testing.T) {
+	if _, err := exec.LookPath("tar"); err != nil {
+		t.Skip("tar is not installed")
+	}
+	dir := t.TempDir()
+	arc := filepath.Join(dir, "a.tar")
+	if err := os.WriteFile(filepath.Join(dir, "x"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("tar", "-cf", arc, "-C", dir, "x").CombinedOutput(); err != nil {
+		t.Fatalf("tar: %v: %s", err, out)
+	}
+	e, _ := newTestEditor(t)
+	b, err := e.archiveList(arc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.active.Visit(b)
+	if got := e.yaziStart(); got != dir {
+		t.Errorf("yazi starts in %q, want %q", got, dir)
+	}
+}

@@ -66,5 +66,6 @@ func (e *Editor) archiveList(path string) (*text.Buffer, error) {
 	if err := fillReadOnly(b, string(out)); err != nil {
 		return nil, err
 	}
+	e.archives[b] = path
 	return b, nil
 }

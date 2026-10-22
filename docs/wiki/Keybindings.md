@@ -29,6 +29,13 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-e` `<end>` | `move-end-of-line` | Move point to the end of the line. |
 | `M-<` `C-<home>` | `beginning-of-buffer` | Move point to the start of the buffer. |
 | `M->` `C-<end>` | `end-of-buffer` | Move point to the end of the buffer. |
+
+### yazi
+
+| Key | Command | Does |
+|---|---|---|
+| `C-<escape>` | `yazi` | Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. |
+| `<escape>` | `yazi-kill-buffer` | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. |
 | `C-v` `<pgdn>` | `scroll-up-command` | Move forward one screenful. |
 | `M-v` `<pgup>` | `scroll-down-command` | Move backward one screenful. |
 | `M-g M-g` | `goto-line` | Move point to the start of a numbered line. |

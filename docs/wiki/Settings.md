@@ -23,7 +23,7 @@ error that says what is allowed; see
 | [`completion-style`](#completion-style) | `"bottom"`, `"popup"` | `"bottom"` |
 | [`delete-selection`](#delete-selection) | `true`, `false` | `true` |
 | [`fill-column`](#fill-column) | 10 to 1000 | `70` |
-| [`hl-line`](#hl-line) | `true`, `false` | `true` |
+| [`hl-line`](#hl-line) | `true`, `false` | `false` |
 | [`icons`](#icons) | `true`, `false`, `"auto"` | `"auto"` |
 | [`keyboard-layout`](#keyboard-layout) | `"auto"`, `"arabic"`, `false` | `"auto"` |
 | [`line-numbers`](#line-numbers) | `true`, `false` | `true` |

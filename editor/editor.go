@@ -143,6 +143,8 @@ type Editor struct {
 	// fd.go.
 	fds    map[*text.Buffer]*fdState
 	fdKeys *keymap.Map
+	// archives holds the file each archive listing shows. See archive.go.
+	archives map[*text.Buffer]string
 	// rgs holds the results behind dired R's buffer, and rgKeys their keymap.
 	// See rgrun.go.
 	rgs    map[*text.Buffer]*rgState
@@ -366,6 +368,7 @@ func New(scr tcell.Screen) (*Editor, error) {
 		grep:       map[*text.Buffer]*grepState{},
 		grepKeys:   gk,
 		fds:        map[*text.Buffer]*fdState{},
+		archives:   map[*text.Buffer]string{},
 		fdKeys:     fk,
 		rgs:        map[*text.Buffer]*rgState{},
 		bookmarks:  map[string]string{},

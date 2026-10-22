@@ -121,7 +121,7 @@ func DefaultSettings() Settings {
 		DeleteSelection: true,
 		Syntax:          true, Theme: "auto",
 		OpenBinary: "ask", Icons: "auto", FillColumn: 70, AutoPair: true,
-		AutoRevert: true, HighlightLine: true, Bidi: "auto", KeyboardLayout: "auto",
+		AutoRevert: true, HighlightLine: false, Bidi: "auto", KeyboardLayout: "auto",
 	}
 }
 

@@ -2,7 +2,9 @@ package editor
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -258,5 +260,28 @@ func TestYaziCommandStaysWhenAFileIsChosen(t *testing.T) {
 	press(t, e, "M-x")
 	if e.Quitting() {
 		t.Error("nem quit although a file was chosen")
+	}
+}
+
+func TestYaziListsAnArchiveInsteadOfRefusingIt(t *testing.T) {
+	if _, err := exec.LookPath("tar"); err != nil {
+		t.Skip("tar is not installed")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "inner.txt"), []byte("hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	arc := filepath.Join(dir, "a.tar.gz")
+	if out, err := exec.Command("tar", "-czf", arc, "-C", dir, "inner.txt").CombinedOutput(); err != nil {
+		t.Fatalf("tar: %v: %s", err, out)
+	}
+	fakeYazi(t, arc)
+	e, _ := newTestEditor(t)
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	b := e.active.Buf
+	if !b.ReadOnly() || !strings.Contains(b.String(), "inner.txt") {
+		t.Errorf("archive buffer = %q (read-only %v), want a listing with inner.txt", b.String(), b.ReadOnly())
 	}
 }

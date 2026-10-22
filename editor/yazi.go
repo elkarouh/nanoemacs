@@ -120,7 +120,7 @@ func nonTextNames(paths []string) []string {
 		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
 			continue
 		}
-		if isText, err := sysopen.IsText(p); err == nil && !isText {
+		if isText, err := sysopen.IsText(p); err == nil && !isText && !isArchive(p) {
 			out = append(out, filepath.Base(p))
 		}
 	}
@@ -193,7 +193,8 @@ func (e *Editor) yaziAt(start string) error {
 	}
 	// What yazi chose is opened, the first of it shown. A file that is not
 	// text is refused, whatever the setting for such files: choosing one here
-	// is a mistake, not a request for the system's app.
+	// is a mistake, not a request for the system's app. An archive is listed
+	// instead, as its table of contents.
 	shown := false
 	var refused []string
 	for _, p := range paths {
@@ -201,6 +202,8 @@ func (e *Editor) yaziAt(start string) error {
 		var err error
 		if fi, serr := os.Stat(p); serr == nil && fi.IsDir() {
 			b, err = e.Dired(p)
+		} else if isArchive(p) {
+			b, err = e.archiveList(p)
 		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText {
 			refused = append(refused, filepath.Base(p))
 			continue

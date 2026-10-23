@@ -227,6 +227,8 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | `C-x o` | `other-window` | Select another window, ARG windows forward. |
 | `S-<left>` | `windmove-left` | Select the window to the left of this one. |
 | `S-<right>` | `windmove-right` | Select the window to the right of this one. |
+| `S-<up>` | `windmove-up` | Select the window above this one. |
+| `S-<down>` | `windmove-down` | Select the window below this one. |
 
 ### Display
 

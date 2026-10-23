@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -294,4 +296,40 @@ func TestTypingCoalescesIntoOneUndoUnit(t *testing.T) {
 	wantText(t, e, "hello")
 	press(t, e, "C-_")
 	wantText(t, e, "")
+}
+
+// Splitting shows the same buffer twice, but find-file and switch-to-buffer in
+// one window change only that window, as in emacs.
+func TestSplitWindowsVisitDifferentBuffers(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "other.txt")
+	if err := os.WriteFile(path, []byte("from disk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e, scr := newTestEditor(t, "scratch text")
+	orig := e.Buf()
+
+	press(t, e, "C-x", "2")
+	first := e.Active()
+	feed(t, scr, txt(path), key(t, "RET"))
+	press(t, e, "C-x", "C-f")
+
+	var other *view.Window
+	for _, w := range e.Tree().Windows() {
+		if w != first {
+			other = w
+		}
+	}
+	if first.Buf == orig || !strings.Contains(first.Buf.String(), "from disk") {
+		t.Fatal("find-file did not change the active window's buffer")
+	}
+	if other.Buf != orig {
+		t.Error("find-file in one window changed the other window's buffer")
+	}
+
+	press(t, e, "C-x", "o")
+	feed(t, scr, txt(e.BufferName(first.Buf)), key(t, "RET"))
+	press(t, e, "C-x", "b")
+	if other.Buf != first.Buf || first.Buf == orig {
+		t.Error("switch-to-buffer in the second window misbehaved")
+	}
 }

@@ -162,6 +162,8 @@ type Editor struct {
 	yaziEnd string
 	// yaziChosen is whether the last yazi run chose anything.
 	yaziChosen bool
+	// yaziOther is whether what yazi chose opens in the other window.
+	yaziOther  bool
 	yaziEndBuf *text.Buffer
 	// bookmarks names the directories dired bookmarks, by name. See
 	// bookmarks.go.

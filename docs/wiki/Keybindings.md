@@ -35,6 +35,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | Key | Command | Does |
 |---|---|---|
 | `C-<escape>` | `yazi` | Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. |
+| `C-x y` | `yazi-other-window` | Run the yazi file manager, then open what it chose in the other window, splitting the frame if there is only one. |
 | `<escape>` | `yazi-kill-buffer` | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. |
 | `C-v` `<pgdn>` | `scroll-up-command` | Move forward one screenful. |
 | `M-v` `<pgup>` | `scroll-down-command` | Move backward one screenful. |

@@ -3,6 +3,8 @@ package editor
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Borderliner/nem/command"
 	"github.com/Borderliner/nem/ui"
@@ -21,14 +23,32 @@ func registerImageCommands(e *Editor, reg *command.Registry) error {
 	})
 }
 
+// isImageFile reports whether path names a picture the image viewer can show.
+func isImageFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif":
+		return true
+	}
+	return false
+}
+
+// canShowImages reports whether opening an image file shows it, rather than
+// refusing it as the binary file it is.
+func (e *Editor) canShowImages() bool { return e.scr != nil && ui.KittySupported() }
+
 func (e *Editor) imageView() error {
-	if e.scr == nil || !ui.KittySupported() {
+	if !e.canShowImages() {
 		return fmt.Errorf("this terminal does not show images (needs kitty, Ghostty or WezTerm outside tmux)")
 	}
 	path := e.active.Buf.Path()
 	if path == "" {
 		return fmt.Errorf("this buffer has no file")
 	}
+	return e.showImage(path)
+}
+
+// showImage draws the image at path over the frame and waits for a key.
+func (e *Editor) showImage(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -56,6 +76,7 @@ func (e *Editor) imageView() error {
 		}
 	}
 	ui.WriteTTY(e.scr, ui.KittyClear)
+	e.Echo("")
 	e.scr.Sync()
 	return nil
 }

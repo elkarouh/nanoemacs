@@ -113,6 +113,16 @@ func yaziChosen(chooser string) []string {
 	return paths
 }
 
+// allImages reports whether every path is a picture.
+func allImages(paths []string) bool {
+	for _, p := range paths {
+		if !isImageFile(p) {
+			return false
+		}
+	}
+	return true
+}
+
 // nonTextNames lists the base names of the files among paths that are not text.
 func nonTextNames(paths []string) []string {
 	var out []string
@@ -154,6 +164,29 @@ func (e *Editor) yaziAt(start string) error {
 			break
 		}
 		paths = yaziChosen(chooser)
+		// Pictures are shown, in terminals that can, and yazi comes back over
+		// them, as it does after a refused binary file.
+		if len(paths) > 0 && e.canShowImages() && allImages(paths) && e.scr != nil {
+			if err := e.scr.Resume(); err != nil {
+				return err
+			}
+			for _, p := range paths {
+				if err := e.showImage(p); err != nil {
+					e.Echo("%v", err)
+				}
+			}
+			if err := e.scr.Suspend(); err != nil {
+				return err
+			}
+			if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
+				if dir := strings.TrimSpace(string(d)); dir != "" {
+					start = dir
+				}
+			}
+			os.Truncate(chooser, 0)
+			paths = nil
+			continue
+		}
 		binaries := nonTextNames(paths)
 		if len(paths) == 0 || len(binaries) != len(paths) {
 			break

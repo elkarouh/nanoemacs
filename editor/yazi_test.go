@@ -308,3 +308,42 @@ func TestYaziStartsInTheDirectoryOfAnArchiveListing(t *testing.T) {
 		t.Errorf("yazi starts in %q, want %q", got, dir)
 	}
 }
+
+// yazi-other-window opens what yazi chose in the other window, splitting the
+// frame when there is only one, and leaves the first window alone.
+func TestYaziOtherWindowOpensInTheOtherWindow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.txt")
+	if err := os.WriteFile(path, []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fakeYazi(t, path)
+	e, _ := newTestEditor(t, "scratch")
+	first, orig := e.active, e.active.Buf
+
+	if err := e.yaziOtherWindow(); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.tree.Windows()) != 2 {
+		t.Fatalf("got %d windows, want 2", len(e.tree.Windows()))
+	}
+	if first.Buf != orig {
+		t.Error("the first window's buffer changed")
+	}
+	if e.active == first || e.active.Buf.Path() != path {
+		t.Errorf("the other window shows %q, want %q", e.active.Buf.Path(), path)
+	}
+	if e.yaziOther {
+		t.Error("yaziOther left set")
+	}
+}
+
+func TestYaziOtherWindowWithNothingChosenDoesNotSplit(t *testing.T) {
+	fakeYazi(t)
+	e, _ := newTestEditor(t)
+	if err := e.yaziOtherWindow(); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.tree.Windows()) != 1 {
+		t.Error("the frame was split although nothing was chosen")
+	}
+}

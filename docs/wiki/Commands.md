@@ -239,6 +239,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yank-pop` | `M-y` | Replace the text just yanked with the next-older kill-ring entry. |
 | `yazi` | `C-ESC`; dired: `Y` | Run the yazi file manager in this buffer's directory, then open what it chose; quitting yazi with nothing chosen quits nem. Needs yazi on the PATH. |
 | `yazi-kill-buffer` | `ESC` | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem. |
+| `yazi-other-window` | `C-x y` | Run the yazi file manager, then open what it chose in the other window, splitting the frame if there is only one. Needs yazi on the PATH. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-231 commands in all.
+232 commands in all.

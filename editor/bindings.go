@@ -32,7 +32,7 @@ var defaultBindings = []struct{ Spec, Command string }{
 	{"C-<end>", "end-of-buffer"},
 
 	// yazi.
-	{"C-<escape>", "yazi"}, {"<escape>", "yazi-kill-buffer"},
+	{"C-<escape>", "yazi"}, {"C-x y", "yazi-other-window"}, {"<escape>", "yazi-kill-buffer"},
 	{"C-v", "scroll-up-command"}, {"<pgdn>", "scroll-up-command"},
 	{"M-v", "scroll-down-command"}, {"<pgup>", "scroll-down-command"},
 	{"M-g M-g", "goto-line"},

@@ -67,6 +67,24 @@ func (e *Editor) ExitDir() string {
 // yazi runs yazi on the active buffer and opens what it chose.
 func (e *Editor) yazi() error { return e.yaziAt(e.yaziStart()) }
 
+// selectOtherWindow selects another window, splitting the frame first when
+// there is only one.
+func (e *Editor) selectOtherWindow() error {
+	if len(e.tree.Windows()) < 2 {
+		return e.SplitWindow(true)
+	}
+	e.OtherWindow(1)
+	return nil
+}
+
+// yaziOtherWindow runs yazi on the active buffer and opens what it chose in
+// the other window, which stays where it is if nothing is chosen.
+func (e *Editor) yaziOtherWindow() error {
+	e.yaziOther = true
+	defer func() { e.yaziOther = false }()
+	return e.yaziAt(e.yaziStart())
+}
+
 // StartYazi is nem with no file named: yazi on dir, before the first frame. It
 // reports whether nem should quit instead of starting: yazi was quit without
 // choosing anything, as with q. When yazi is missing or fails, dir is listed in
@@ -247,6 +265,11 @@ func (e *Editor) yaziAt(start string) error {
 			return err
 		}
 		if !shown {
+			if e.yaziOther {
+				if err := e.selectOtherWindow(); err != nil {
+					return err
+				}
+			}
 			e.VisitOpened(b)
 			shown = true
 		}
@@ -303,6 +326,8 @@ func registerYaziCommands(e *Editor, reg *command.Registry) error {
 				}
 				return e.quitIfNothingChosen(env)
 			}},
+		{Name: "yazi-other-window", Doc: "Run the yazi file manager, then open what it chose in the other window, splitting the frame if there is only one. Needs yazi on the PATH.",
+			Interactive: true, Fn: func(command.Env) error { return e.yaziOtherWindow() }},
 		{Name: "yazi-kill-buffer", Doc: "Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem.",
 			Interactive: true, Fn: func(env command.Env) error {
 				if err := e.yaziKillBuffer(); err != nil {

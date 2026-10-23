@@ -333,3 +333,35 @@ func TestSplitWindowsVisitDifferentBuffers(t *testing.T) {
 		t.Error("switch-to-buffer in the second window misbehaved")
 	}
 }
+
+// Shift-arrows select the window beside the active one, in all four directions.
+func TestShiftArrowsMoveBetweenWindows(t *testing.T) {
+	e, _ := newTestEditor(t, "x")
+	press(t, e, "C-x", "2") // below; the new window is active
+	lower := e.Active()
+	press(t, e, "S-<up>")
+	upper := e.Active()
+	if upper == lower {
+		t.Fatal("S-<up> did not leave the lower window")
+	}
+	press(t, e, "S-<up>")
+	if e.Active() != upper {
+		t.Error("S-<up> with no window above moved anyway")
+	}
+	press(t, e, "S-<down>")
+	if e.Active() != lower {
+		t.Error("S-<down> did not return to the lower window")
+	}
+
+	press(t, e, "C-x", "1")
+	press(t, e, "C-x", "3") // beside
+	right := e.Active()
+	press(t, e, "S-<left>")
+	if e.Active() == right {
+		t.Fatal("S-<left> did not leave the right window")
+	}
+	press(t, e, "S-<right>")
+	if e.Active() != right {
+		t.Error("S-<right> did not return to the right window")
+	}
+}

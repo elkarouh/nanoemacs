@@ -68,3 +68,23 @@ func TestKittySupportedRefusesMultiplexers(t *testing.T) {
 		t.Error("tmux should disable images")
 	}
 }
+
+func TestKittySupportedOverride(t *testing.T) {
+	t.Setenv("KITTY_WINDOW_ID", "")
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("TERM_PROGRAM", "")
+	t.Setenv("TMUX", "")
+	t.Setenv("NEM_IMAGES", "")
+	if KittySupported() {
+		t.Error("plain xterm should not be taken for kitty")
+	}
+	t.Setenv("NEM_IMAGES", "1")
+	if !KittySupported() {
+		t.Error("NEM_IMAGES=1 was ignored")
+	}
+	t.Setenv("KITTY_WINDOW_ID", "1")
+	t.Setenv("NEM_IMAGES", "0")
+	if KittySupported() {
+		t.Error("NEM_IMAGES=0 was ignored")
+	}
+}

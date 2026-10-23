@@ -26,7 +26,16 @@ import (
 // that do announce themselves in the environment. A multiplexer is ruled out
 // even over one that does: tmux and screen do not forward the protocol
 // without configuration nem cannot see.
+//
+// NEM_IMAGES=1 says it does whatever the environment shows, as over ssh where
+// the terminal's variables are not passed on, and NEM_IMAGES=0 says it does not.
 func KittySupported() bool {
+	switch os.Getenv("NEM_IMAGES") {
+	case "1":
+		return true
+	case "0":
+		return false
+	}
 	if os.Getenv("TMUX") != "" || os.Getenv("STY") != "" {
 		return false
 	}

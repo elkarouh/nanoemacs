@@ -119,3 +119,35 @@ func TestUseSyntaxPaletteSwitches(t *testing.T) {
 		t.Error("UseSyntaxPalette(true) left the dark styles in place")
 	}
 }
+
+func TestParseOSC11(t *testing.T) {
+	for _, tc := range []struct {
+		reply     string
+		light, ok bool
+	}{
+		{"\x1b]11;rgb:ffff/ffff/ffff\a", true, true},
+		{"\x1b]11;rgb:0000/0000/0000\x1b\\", false, true},
+		{"\x1b]11;rgb:ff/fd/f6\a", true, true},        // two-digit channels
+		{"\x1b]11;rgb:1e1e/1e1e/2e2e\a", false, true}, // a dark theme
+		{"\x1b]11;rgb:f/f/f\a", true, true},           // one digit
+		{"\x1b]11;rgb:zz/00/00\a", false, false},
+		{"\x1b]11;rgb:ff/ff\a", false, false},
+		{"garbage", false, false},
+		{"", false, false},
+	} {
+		light, ok := parseOSC11(tc.reply)
+		if light != tc.light || ok != tc.ok {
+			t.Errorf("parseOSC11(%q) = %v, %v; want %v, %v", tc.reply, light, ok, tc.light, tc.ok)
+		}
+	}
+}
+
+func TestDetectedBackgroundWinsOverEnv(t *testing.T) {
+	t.Setenv("COLORFGBG", "0;15")
+	dark := false
+	detectedLight = &dark
+	defer func() { detectedLight = nil }()
+	if TerminalIsLight() {
+		t.Error("TerminalIsLight() followed COLORFGBG over the terminal's own answer")
+	}
+}

@@ -77,6 +77,7 @@ func rescue(e *editor.Editor) (saved []string) {
 }
 
 func run(targets []target, cwdFile string) (err error) {
+	ui.DetectBackground()
 	scr, err := ui.NewScreen()
 	if err != nil {
 		return fmt.Errorf("opening terminal: %w", err)

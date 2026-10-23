@@ -154,6 +154,8 @@ func (t *Theme) UseSyntaxPalette(light bool) {
 
 // TerminalIsLight guesses whether the terminal has a light background.
 //
+// What the terminal reported to DetectBackground wins. Failing that:
+//
 // COLORFGBG is set by several terminals as "fg;bg" (sometimes "fg;default;bg")
 // with the colour numbers of each. Background 7 or 15 is white or bright white;
 // everything else is treated as dark. It is a heuristic - many terminals do not
@@ -161,6 +163,9 @@ func (t *Theme) UseSyntaxPalette(light bool) {
 // setting. Guessing dark is the safer miss: most terminals are dark, and the
 // dark palette on a light ground is faint rather than invisible.
 func TerminalIsLight() bool {
+	if detectedLight != nil {
+		return *detectedLight
+	}
 	v := os.Getenv("COLORFGBG")
 	if v == "" {
 		return false

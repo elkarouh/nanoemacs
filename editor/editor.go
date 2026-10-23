@@ -456,6 +456,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err := registerVCCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering version control commands: %w", err)
 	}
+	if err := registerImageCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering image commands: %w", err)
+	}
 	if err := registerMarkdownCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering markdown commands: %w", err)
 	}

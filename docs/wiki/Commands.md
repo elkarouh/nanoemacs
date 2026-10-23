@@ -97,6 +97,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `grep-previous-line` | grep: `C-p` `<up>` | Move to the previous match, ARG matches back. |
 | `grep-previous-match` | grep: `p` | Move to the previous match, ARG matches back, showing it in the other window. |
 | `grep-revert` | grep: `g` | Search again, for the same thing in the same project or buffer. |
+| `image-view` |  | Show the active buffer's file, a PNG, JPEG or GIF, as an image over the window, in terminals that draw kitty graphics (kitty, Ghostty, WezTerm). Any key closes it. |
 | `imenu` | `M-g i` | Go to a definition in this buffer - a function, a type, a heading - by name. |
 | `indent-for-tab-command` | `TAB` | Indent at point, or the region's lines, with the file's tabs or spaces. |
 | `indent-rigidly` | `C-x TAB` | Shift the region's lines right by ARG columns, or one level; left with a negative ARG. |
@@ -240,4 +241,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-kill-buffer` | `ESC` | Kill this buffer, confirming if it is modified, then run yazi in its directory and open what it chose. Quitting yazi with nothing chosen quits nem. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-230 commands in all.
+231 commands in all.

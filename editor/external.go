@@ -76,6 +76,10 @@ type openFailure struct{ err error }
 // goes to the system's app instead of a buffer, and sends it there if so. It
 // reports true when the file was handed over.
 func (e *Editor) openElsewhere(abs string) (bool, error) {
+	// A picture is shown by nem itself where the terminal can draw it.
+	if isImageFile(abs) && e.canShowImages() {
+		return true, e.showImage(abs)
+	}
 	isText, err := sysopen.IsText(abs)
 	if err != nil || isText {
 		// Unreadable is for LoadFile to report, with its own error.

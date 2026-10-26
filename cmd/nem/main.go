@@ -7,9 +7,10 @@
 //
 // Each named file is opened into a buffer; the first is shown. A +LINE
 // argument, as in emacs, opens the file after it at that line (and column).
-// With no arguments nem runs yazi on the current directory: a file chosen is
-// opened, and quitting yazi without choosing quits nem. Without yazi it lists
-// the directory in dired.
+// Text piped in on stdin, as in ls -al | nem, is opened in a *stdin* buffer,
+// and shown when no file is named. With no arguments and no input nem runs
+// yazi on the current directory: a file chosen is opened, and quitting yazi
+// without choosing quits nem. Without yazi it lists the directory in dired.
 package main
 
 import (
@@ -77,6 +78,13 @@ func rescue(e *editor.Editor) (saved []string) {
 }
 
 func run(targets []target, cwdFile string) (err error) {
+	// Read before the screen opens: the keys come from the terminal, which
+	// the screen reopens itself, so the input read here is only the text.
+	stdin, piped, err := readStdin(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("reading stdin: %w", err)
+	}
+
 	ui.DetectBackground()
 	scr, err := ui.NewScreen()
 	if err != nil {
@@ -128,6 +136,13 @@ func run(targets []target, cwdFile string) (err error) {
 	_ = e.LoadConfig("")
 	defer e.CloseConfig()
 
+	if piped {
+		b := e.OpenText(stdinName, stdin)
+		if len(targets) == 0 {
+			e.VisitOpened(b)
+		}
+	}
+
 	// What the last session remembered - prompt history, recent files, where
 	// point was in each file - kept beside the backups. Without a state
 	// directory nem simply starts with none.
@@ -137,7 +152,7 @@ func run(targets []target, cwdFile string) (err error) {
 
 	// With no file named, nem runs yazi on the current directory below, and
 	// lists it in dired if yazi is missing or fails.
-	bare := len(targets) == 0
+	bare := len(targets) == 0 && !piped
 
 	for i, t := range targets {
 		b, err := e.OpenFile(t.Path)

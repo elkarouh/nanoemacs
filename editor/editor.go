@@ -656,6 +656,16 @@ func (e *Editor) NewBuffer(name string) *text.Buffer {
 	return b
 }
 
+// OpenText shows data, which came from outside the editor such as nem's stdin,
+// in a new buffer named name. The buffer has no file: saving it asks for one.
+// A name already taken gets a suffix, so the text is never lost to another
+// buffer.
+func (e *Editor) OpenText(name string, data []byte) *text.Buffer {
+	b := text.FromBytes(data)
+	e.adopt(b, e.uniqueName(name))
+	return b
+}
+
 // OpenFile returns the buffer visiting path, reading it if it is not open yet.
 // A path that does not exist yields an empty buffer carrying it, which is how
 // find-file creates a new file. A directory is listed in dired, so find-file

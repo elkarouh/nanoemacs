@@ -259,3 +259,35 @@ func TestRedrawAtDegenerateSize(t *testing.T) {
 	scr.SetSize(1, 1)
 	e.Redraw()
 }
+
+// Piped input opens in a buffer of its own, named for where it came from, with
+// no file behind it, so saving asks for one rather than writing over anything.
+func TestOpenTextMakesFilelessBuffer(t *testing.T) {
+	e, _ := newTestEditor(t)
+	b := e.OpenText("*stdin*", []byte("one\ntwo\n"))
+	if got := b.String(); got != "one\ntwo" {
+		t.Errorf("text = %q, want %q", got, "one\ntwo")
+	}
+	if b.Path() != "" {
+		t.Errorf("path = %q, want none", b.Path())
+	}
+	if got, ok := e.BufferByName("*stdin*"); !ok || got != b {
+		t.Error("buffer is not found under *stdin*")
+	}
+	if b.Modified() {
+		t.Error("freshly read text is marked modified")
+	}
+}
+
+// A second piped read while the first buffer is open must not replace it.
+func TestOpenTextUniqueName(t *testing.T) {
+	e, _ := newTestEditor(t)
+	first := e.OpenText("*stdin*", []byte("a\n"))
+	second := e.OpenText("*stdin*", []byte("b\n"))
+	if first == second {
+		t.Fatal("two reads share one buffer")
+	}
+	if got := e.BufferName(second); got == "*stdin*" {
+		t.Errorf("second buffer kept the taken name %q", got)
+	}
+}

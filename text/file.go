@@ -25,11 +25,19 @@ func LoadFile(path string) (*Buffer, error) {
 		return nil, err
 	}
 
-	b := NewBuffer()
+	b := FromBytes(data)
 	b.path = path
+	return b, nil
+}
+
+// FromBytes returns a buffer holding data, decoded as a file's bytes are, with
+// no path. It is how text that did not come from a file, such as piped input,
+// becomes a buffer.
+func FromBytes(data []byte) *Buffer {
+	b := NewBuffer()
 	b.lines, b.crlf, b.finalNL = decodeLines(data)
 	b.undo = newUndoLog()
-	return b, nil
+	return b
 }
 
 // decodeLines splits a file's bytes into lines, reporting whether it uses

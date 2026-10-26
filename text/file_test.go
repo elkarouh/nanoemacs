@@ -230,3 +230,16 @@ func TestFinalNewlineIsWhatSavingWrites(t *testing.T) {
 		})
 	}
 }
+
+func TestFromBytesHasNoPathAndKeepsTheText(t *testing.T) {
+	b := FromBytes([]byte("alpha\r\nbeta"))
+	if b.Path() != "" {
+		t.Errorf("path = %q, want none", b.Path())
+	}
+	if b.NumLines() != 2 || string(b.Line(1).runes) != "beta" {
+		t.Errorf("lines = %d, want 2 ending in beta", b.NumLines())
+	}
+	if b.FinalNewline() {
+		t.Error("text without a final newline reports one")
+	}
+}

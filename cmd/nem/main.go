@@ -137,7 +137,7 @@ func run(targets []target, cwdFile string) (err error) {
 	defer e.CloseConfig()
 
 	if piped {
-		b := e.OpenText(stdinName, stdin)
+		b := e.OpenText(stdinName, plainStdin(stdin))
 		if len(targets) == 0 {
 			e.VisitOpened(b)
 		}

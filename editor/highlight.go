@@ -219,4 +219,5 @@ func (e *Editor) retuneHighlight(b *text.Buffer) {
 func (e *Editor) forgetHighlight(b *text.Buffer) {
 	delete(e.hl, b)
 	delete(e.chosen, b)
+	delete(e.styles, b)
 }

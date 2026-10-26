@@ -175,6 +175,7 @@ func (e *Editor) symbolSpans(b *text.Buffer, line int) []ui.SymbolSpan {
 	if st := e.previewOf(b); st != nil {
 		out = append(out, st.lines[line]...)
 	}
+	out = append(out, e.styles[b][line]...)
 	if st := e.rgOf(b); st != nil {
 		out = append(out, st.lines[line]...)
 	}

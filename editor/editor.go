@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/Borderliner/nem/ansistyle"
 	"github.com/Borderliner/nem/command"
 	"github.com/Borderliner/nem/gitdiff"
 	"github.com/Borderliner/nem/highlight"
@@ -187,6 +188,8 @@ type Editor struct {
 	gutter map[*text.Buffer]gitdiff.Marks
 	// previews holds each source buffer's Markdown preview. See markdown.go.
 	previews map[*text.Buffer]*previewState
+	// styles holds the colours of piped input, by line, as OpenText reads them.
+	styles map[*text.Buffer]map[int][]ui.SymbolSpan
 	// previewKeys is a preview's keymap: the viewer's keys. See markdown.go.
 	previewKeys     *keymap.Map
 	shellKeys       *keymap.Map
@@ -383,6 +386,7 @@ func New(scr tcell.Screen) (*Editor, error) {
 		shells:          map[*text.Buffer]*shellState{},
 		gutter:          map[*text.Buffer]gitdiff.Marks{},
 		previews:        map[*text.Buffer]*previewState{},
+		styles:          map[*text.Buffer]map[int][]ui.SymbolSpan{},
 		previewKeys:     pk,
 		shellKeys:       shk,
 		compileCommands: map[string]string{},
@@ -657,12 +661,21 @@ func (e *Editor) NewBuffer(name string) *text.Buffer {
 }
 
 // OpenText shows data, which came from outside the editor such as nem's stdin,
-// in a new buffer named name. The buffer has no file: saving it asks for one.
-// A name already taken gets a suffix, so the text is never lost to another
-// buffer.
+// in a new buffer named name. Styling the program wrote into data, such as the
+// colours of ls --color=always, is drawn as colour; the escape codes that carry
+// it are not text and are not kept.
+//
+// The buffer has no file, and is read-only: the colours are over the text as it
+// came, so an edit would leave them on the wrong words. A name already taken
+// gets a suffix, so the text is never lost to another buffer.
 func (e *Editor) OpenText(name string, data []byte) *text.Buffer {
-	b := text.FromBytes(data)
+	plain, spans := ansistyle.Parse(string(data))
+	b := text.FromBytes([]byte(plain))
+	b.SetReadOnly(true)
 	e.adopt(b, e.uniqueName(name))
+	if len(spans) > 0 {
+		e.styles[b] = previewLines(plain, spans)
+	}
 	return b
 }
 

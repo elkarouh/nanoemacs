@@ -291,3 +291,28 @@ func TestOpenTextUniqueName(t *testing.T) {
 		t.Errorf("second buffer kept the taken name %q", got)
 	}
 }
+
+// Colour codes in piped input are drawn as colour over the words they styled.
+// The codes are not text, so the buffer holds only the words.
+func TestOpenTextDrawsColourFromCodes(t *testing.T) {
+	e, _ := newTestEditor(t)
+	b := e.OpenText("*stdin*", []byte("\x1b[1;37;41mCHANGES\x1b[0m BY\n"))
+	if got := b.String(); got != "CHANGES BY" {
+		t.Fatalf("text = %q, want %q", got, "CHANGES BY")
+	}
+	if !b.ReadOnly() {
+		t.Error("piped text is editable; its colours would be left on the wrong words")
+	}
+	var found *ui.SymbolSpan
+	for _, sp := range e.symbolSpans(b, 0) {
+		if sp.Styled && sp.Start == 0 && sp.End == 7 {
+			found = &sp
+		}
+	}
+	if found == nil {
+		t.Fatalf("no colour span over CHANGES in %+v", e.symbolSpans(b, 0))
+	}
+	if _, bg, _ := found.Style.Decompose(); bg != tcell.PaletteColor(1) {
+		t.Errorf("background = %v, want palette 1 (the 41 code's red)", bg)
+	}
+}

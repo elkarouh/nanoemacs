@@ -85,20 +85,3 @@ func TestReadStdinCharacterDeviceIsNotInput(t *testing.T) {
 		t.Errorf("readStdin = %q, %v; want nothing, false", got, piped)
 	}
 }
-
-// Colour codes from a program run with --color=always are styling, so they go,
-// and the text they were over stays.
-func TestPlainStdinDropsColourCodes(t *testing.T) {
-	in := "\x1b[1;37;41mCHANGES BY COMMITTER\x1b[0m\n\x1b[37;44meliitiai\x1b[0m  12 files\n"
-	want := "CHANGES BY COMMITTER\neliitiai  12 files\n"
-	if got := string(plainStdin([]byte(in))); got != want {
-		t.Errorf("plainStdin = %q, want %q", got, want)
-	}
-}
-
-func TestPlainStdinLeavesPlainTextAlone(t *testing.T) {
-	in := "total 8\n-rw-r--r-- 1 me me 0 notes.txt\n"
-	if got := string(plainStdin([]byte(in))); got != in {
-		t.Errorf("plainStdin = %q, want %q", got, in)
-	}
-}

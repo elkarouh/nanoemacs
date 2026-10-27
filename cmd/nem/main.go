@@ -7,8 +7,8 @@
 //
 // Each named file is opened into a buffer; the first is shown. A +LINE
 // argument, as in emacs, opens the file after it at that line (and column).
-// Text piped in on stdin, as in ls -al | nem, is opened in a *stdin* buffer,
-// and shown when no file is named. With no arguments and no input nem runs
+// Text piped in on stdin, as in ls -al | nem, is shown in a *stdin* buffer as
+// it arrives, and shown when no file is named. With no arguments and no input nem runs
 // yazi on the current directory: a file chosen is opened, and quitting yazi
 // without choosing quits nem. Without yazi it lists the directory in dired.
 package main
@@ -78,9 +78,7 @@ func rescue(e *editor.Editor) (saved []string) {
 }
 
 func run(targets []target, cwdFile string) (err error) {
-	// Read before the screen opens: the keys come from the terminal, which
-	// the screen reopens itself, so the input read here is only the text.
-	stdin, piped, err := readStdin(os.Stdin)
+	piped, err := isPiped(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("reading stdin: %w", err)
 	}
@@ -137,7 +135,9 @@ func run(targets []target, cwdFile string) (err error) {
 	defer e.CloseConfig()
 
 	if piped {
-		b := e.OpenText(stdinName, stdin)
+		// Followed as it arrives, so a command still running shows its output
+		// as it goes; the keys come from the terminal, not from this input.
+		b := e.FollowText(stdinName, os.Stdin)
 		if len(targets) == 0 {
 			e.VisitOpened(b)
 		}

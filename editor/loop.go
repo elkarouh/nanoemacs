@@ -222,6 +222,9 @@ func (e *Editor) handleEvent(ev tcell.Event) {
 		case liveFound:
 			// A live prompt's search is back; see searchLive.
 			e.liveArrived(d)
+		case pipeWake:
+			// Text piped into nem has arrived; see pipein.go.
+			e.guard("piped input", d.in.show)
 		}
 	case *tcell.EventMouse:
 		// Mouse selection, which replaces the terminal's own: see mouse.go.

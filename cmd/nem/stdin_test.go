@@ -6,48 +6,24 @@ import (
 	"testing"
 )
 
-func TestReadStdinPipe(t *testing.T) {
+func TestIsPipedForAPipe(t *testing.T) {
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	want := "total 8\n-rw-r--r-- 1 me me 0 notes.txt\n"
-	if _, err := w.WriteString(want); err != nil {
-		t.Fatal(err)
-	}
-	w.Close()
+	defer w.Close()
 
-	got, piped, err := readStdin(r)
+	piped, err := isPiped(r)
 	if err != nil {
-		t.Fatalf("readStdin: %v", err)
+		t.Fatalf("isPiped: %v", err)
 	}
 	if !piped {
 		t.Fatal("a pipe was not reported as input")
 	}
-	if string(got) != want {
-		t.Errorf("readStdin = %q, want %q", got, want)
-	}
 }
 
-func TestReadStdinEmptyPipeIsStillInput(t *testing.T) {
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer r.Close()
-	w.Close()
-
-	_, piped, err := readStdin(r)
-	if err != nil {
-		t.Fatalf("readStdin: %v", err)
-	}
-	if !piped {
-		t.Fatal("an empty pipe was not reported as input")
-	}
-}
-
-func TestReadStdinRedirectedFile(t *testing.T) {
+func TestIsPipedForARedirectedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "in.txt")
 	if err := os.WriteFile(path, []byte("from a file\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -58,30 +34,30 @@ func TestReadStdinRedirectedFile(t *testing.T) {
 	}
 	defer f.Close()
 
-	got, piped, err := readStdin(f)
+	piped, err := isPiped(f)
 	if err != nil {
-		t.Fatalf("readStdin: %v", err)
+		t.Fatalf("isPiped: %v", err)
 	}
-	if !piped || string(got) != "from a file\n" {
-		t.Errorf("readStdin = %q, %v; want the file's text, true", got, piped)
+	if !piped {
+		t.Fatal("a redirected file was not reported as input")
 	}
 }
 
 // A terminal, or /dev/null, has no text to offer, so nem starts as it does
 // with nothing piped in. /dev/null stands in for both: each is a character
 // device.
-func TestReadStdinCharacterDeviceIsNotInput(t *testing.T) {
+func TestIsPipedForACharacterDevice(t *testing.T) {
 	f, err := os.Open(os.DevNull)
 	if err != nil {
 		t.Skip("no null device:", err)
 	}
 	defer f.Close()
 
-	got, piped, err := readStdin(f)
+	piped, err := isPiped(f)
 	if err != nil {
-		t.Fatalf("readStdin: %v", err)
+		t.Fatalf("isPiped: %v", err)
 	}
-	if piped || got != nil {
-		t.Errorf("readStdin = %q, %v; want nothing, false", got, piped)
+	if piped {
+		t.Error("a character device was reported as input")
 	}
 }

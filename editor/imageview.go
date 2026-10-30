@@ -44,6 +44,7 @@ func (e *Editor) clearImage() {
 		return
 	}
 	ui.WriteTTY(e.scr, ui.KittyClear)
+	e.forgetPictures()
 }
 
 func (e *Editor) imageView() error {

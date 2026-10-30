@@ -129,6 +129,41 @@ func KittyDraw(png []byte, x, y, cols, rows int) string {
 // KittyClear is the sequence that removes every image nem drew.
 const KittyClear = "\x1b_Ga=d,d=A,q=2\x1b\\"
 
+// KittyClearPlacements removes what is drawn on screen, and keeps the images
+// stored, so KittyPlace can draw them again without sending their data.
+const KittyClearPlacements = "\x1b_Ga=d,d=a,q=2\x1b\\"
+
+// KittyTransmit stores the PNG under id in the terminal, without drawing it.
+// KittyPlace draws it, any number of times.
+func KittyTransmit(png []byte, id int) string {
+	var sb strings.Builder
+	enc := base64.StdEncoding.EncodeToString(png)
+	const chunk = 4096
+	for first := true; len(enc) > 0; first = false {
+		n := min(chunk, len(enc))
+		more := 0
+		if n < len(enc) {
+			more = 1
+		}
+		if first {
+			fmt.Fprintf(&sb, "\x1b_Ga=t,f=100,i=%d,q=2,m=%d;", id, more)
+		} else {
+			fmt.Fprintf(&sb, "\x1b_Gm=%d;", more)
+		}
+		sb.WriteString(enc[:n])
+		sb.WriteString("\x1b\\")
+		enc = enc[n:]
+	}
+	return sb.String()
+}
+
+// KittyPlace returns the escape sequence that draws the image stored under id
+// in a cols by rows cell box whose top-left cell is x, y. The cursor is saved
+// and restored around it.
+func KittyPlace(id, x, y, cols, rows int) string {
+	return fmt.Sprintf("\x1b7\x1b[%d;%dH\x1b_Ga=p,i=%d,c=%d,r=%d,q=2,C=1\x1b\\\x1b8", y+1, x+1, id, cols, rows)
+}
+
 // WriteTTY writes raw bytes to the terminal, past tcell. It reports whether
 // the terminal could be reached.
 func WriteTTY(scr tcell.Screen, seq string) bool {

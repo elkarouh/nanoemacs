@@ -706,8 +706,16 @@ func (e *Editor) Redraw() {
 		return
 	}
 	e.frames++
-	ui.Render(e.scr, e.frame(), e.th)
+	f := e.frame()
+	ui.Render(e.scr, f, e.th)
 	e.scr.Show()
+	// The terminal draws pictures over the text, so they are placed after the
+	// screen is shown, and never while a panel is open.
+	w, h := e.scr.Size()
+	kitty := e.canShowImages() && !ui.UseSixel()
+	if seq := e.pictureSequence(w, h-1, len(f.Panels) > 0, kitty); seq != "" {
+		ui.WriteTTY(e.scr, seq)
+	}
 }
 
 // startupPanel builds the welcome panel when one is wanted and there is room.

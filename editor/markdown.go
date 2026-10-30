@@ -37,6 +37,9 @@ type previewState struct {
 	lines  map[int][]ui.SymbolSpan
 	shown  bool
 	render renderer
+	// pictures are the pictures of an EPUB preview, drawn over their rows. Nil
+	// for any other preview. See epub.go.
+	pictures []*epubPicture
 }
 
 // renderer turns a source's text into the text its preview shows, with the

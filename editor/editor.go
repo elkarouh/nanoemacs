@@ -187,6 +187,9 @@ type Editor struct {
 	gutter map[*text.Buffer]gitdiff.Marks
 	// previews holds each source buffer's Markdown preview. See markdown.go.
 	previews map[*text.Buffer]*previewState
+	// picturesDrawn reports whether the last redraw left pictures of an EPUB
+	// preview on screen, which the next redraw must clear. See epubimage.go.
+	picturesDrawn bool
 	// pipes holds the piped input each buffer is following; see pipein.go.
 	pipes map[*text.Buffer]*pipeIn
 	// styles holds the colours of piped input, by line; see pipein.go.

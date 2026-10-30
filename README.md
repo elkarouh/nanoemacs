@@ -63,16 +63,18 @@ are found on your `PATH`:
 | `nem` with no arguments, and `C-x y` | [yazi](https://yazi-rs.github.io) | `brew install yazi`, `cargo install --locked yazi-fm yazi-cli`, or your package manager |
 | Markdown preview: `.md` files open in it, `C-x x m` shows it for any buffer | [mdcat](https://github.com/swsnr/mdcat) | `cargo install mdcat`, `brew install mdcat`, or your package manager |
 | HTML preview: `.html` and `.htm` files open in it, `C-x x h` shows it for any buffer | [lynx](https://lynx.invisible-island.net) | `dnf install lynx`, `apt install lynx`, or `brew install lynx` |
-| PDF preview: a `.pdf` chosen in yazi shows its first page, as an image | pdftoppm, from poppler | `dnf install poppler-utils`, `apt install poppler-utils`, or `brew install poppler` |
+| PDF viewer: a `.pdf` chosen in yazi opens one page at a time | pdfinfo and pdftoppm, from poppler | `dnf install poppler-utils`, `apt install poppler-utils`, or `brew install poppler` |
 
 Without a program, nem falls back: `nem` with no arguments lists the directory in
 dired, and a preview shows the file as plain text.
 
 **Images and PDFs** show as pixels, in a terminal that draws the kitty graphics
 protocol: kitty, Ghostty or WezTerm. There, `M-x image-view` shows a PNG, JPEG or
-GIF, and a picture or PDF chosen in yazi shows over the window. Elsewhere `M-x
-image-view` says so and does nothing, and yazi refuses a PDF as it refuses any
-binary file.
+GIF, and a picture chosen in yazi shows over the window. A PDF chosen in yazi
+opens one page at a time: the arrow keys and Page Up and Page Down turn pages,
+Home and End go to the first and last, and any other key goes back to yazi.
+Elsewhere `M-x image-view` says so and does nothing, and yazi refuses a PDF as it
+refuses any binary file.
 
 <details>
 <summary><b>From source</b></summary>

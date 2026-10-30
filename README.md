@@ -55,8 +55,8 @@ carries each archive's SHA-256.
 go install github.com/Borderliner/nem/cmd/nem@latest
 ```
 
-**Prerequisites** — nem itself needs nothing to edit. These programs are called
-from its `PATH`:
+**Prerequisites** — nem needs nothing to edit. These programs, when installed,
+are found on your `PATH`:
 
 | Needed for | Program | Install |
 |---|---|---|
@@ -64,13 +64,12 @@ from its `PATH`:
 | Markdown preview: `.md` files open in it, `C-x x m` shows it for any buffer | [mdcat](https://github.com/swsnr/mdcat) | `cargo install mdcat`, `brew install mdcat`, or your package manager |
 | HTML preview: `.html` and `.htm` files open in it, `C-x x h` shows it for any buffer | [lynx](https://lynx.invisible-island.net) | `dnf install lynx`, `apt install lynx`, or `brew install lynx` |
 
-Without a program, its feature falls back or says what is missing: `nem` with no
-arguments lists the directory in dired, and a preview opens the file as its plain
-text.
+Without a program, nem falls back: `nem` with no arguments lists the directory in
+dired, and a preview shows the file as plain text.
 
-**Images** need no program, but they need a terminal that draws the kitty graphics
-protocol, such as kitty, Ghostty or WezTerm. `M-x image-view` shows a PNG, JPEG or
-GIF as pixels there, and says so and does nothing elsewhere.
+**Images** need no program, but a terminal that draws the kitty graphics protocol:
+kitty, Ghostty or WezTerm. There, `M-x image-view` shows a PNG, JPEG or GIF as
+pixels. Elsewhere it says so and does nothing.
 
 <details>
 <summary><b>From source</b></summary>
@@ -256,9 +255,9 @@ done together or none.
   `insert_final_newline` are honoured, applied to the buffer so the screen shows
   what was written.
 - **Previews** — a `.md` file opens as its mdcat rendering, and a `.html` file as
-  the page as lynx lays it out. `q` shows the source to edit, and `C-x x m` and
-  `C-x x h` preview any buffer. A preview redraws on each save of its source, and
-  quitting nem from a preview leaves your shell in the file's directory.
+  the page as lynx lays it out. `q` shows the source to edit. `C-x x m` and
+  `C-x x h` preview any buffer, and a preview redraws on each save of its source.
+  Quitting nem from a preview leaves your shell in the file's directory.
 
 ### Projects, compiling and the shell
 
@@ -285,11 +284,10 @@ whole of it, as projectile does.
   at point, `M-|` feeds it the region, and `C-u M-|` replaces the region with
   the output, which makes anything a filter: `sort`, `jq .`, `column -t`. `M-&`
   runs one in the background.
-- **Piped input** — `ls -l --color=always | nem` opens the output in a `*stdin*`
-  buffer as it arrives, so a command still running shows its lines as they come.
-  Colours show as colours. The buffer is read-only, and the keyboard still comes
-  from the terminal. Colour codes are only written when the program is told to
-  write them: `ls --color=auto` writes none into a pipe.
+- **Piped input** — `ls -l --color=always | nem` opens the output in a read-only
+  `*stdin*` buffer, with its colours, and shows each line as it arrives. The
+  keyboard still comes from the terminal. `ls --color=auto` writes no colour into
+  a pipe, so ask for `always`.
 - **The system clipboard** — `C-w` and `M-w` reach it over OSC 52, through SSH
   too, and `C-y` pastes what other programs copied. The terminal's own paste
   key inserts text verbatim, as one undo.

@@ -13,10 +13,10 @@ import (
 )
 
 // A PDF chosen in yazi opens in a viewer that draws one page at a time, each
-// rendered by pdftoppm, over the window. The arrow keys and Page Up and Page
-// Down turn pages, C-f and C-b and Home and End go to the next and previous
-// page, the first and last. Any other key closes the viewer back to yazi. It
-// needs the same terminal as a picture; elsewhere yazi refuses a PDF as any
+// rendered by pdftoppm, over the window. The arrow keys, Page Up, Page Down and
+// space turn pages, Home and End go to the first and last, and g goes to a page
+// the number of which is typed. Any other key closes the viewer back to yazi.
+// It needs the same terminal as a picture; elsewhere yazi refuses a PDF as any
 // binary file.
 
 // pdfAct is what a key does in the PDF viewer.
@@ -28,6 +28,7 @@ const (
 	pdfPrev
 	pdfFirst
 	pdfLast
+	pdfGoto
 )
 
 // pdfDPI is the resolution a page is rendered at.
@@ -36,28 +37,23 @@ const pdfDPI = 150
 // pdfKeyAct is what a key press does in the PDF viewer.
 func pdfKeyAct(ev *tcell.EventKey) pdfAct {
 	if ev.Modifiers()&tcell.ModAlt != 0 {
-		switch ev.Rune() {
-		case '<':
-			return pdfFirst
-		case '>':
-			return pdfLast
-		}
 		return pdfClose
 	}
 	switch ev.Key() {
-	case tcell.KeyRight, tcell.KeyDown, tcell.KeyPgDn, tcell.KeyCtrlF:
+	case tcell.KeyRight, tcell.KeyDown, tcell.KeyPgDn:
 		return pdfNext
-	case tcell.KeyLeft, tcell.KeyUp, tcell.KeyPgUp, tcell.KeyCtrlB:
+	case tcell.KeyLeft, tcell.KeyUp, tcell.KeyPgUp:
 		return pdfPrev
 	case tcell.KeyHome:
 		return pdfFirst
 	case tcell.KeyEnd:
 		return pdfLast
-	case tcell.KeyCtrlV:
-		return pdfNext
 	case tcell.KeyRune:
-		if ev.Rune() == ' ' {
+		switch ev.Rune() {
+		case ' ':
 			return pdfNext
+		case 'g':
+			return pdfGoto
 		}
 	}
 	return pdfClose
@@ -137,14 +133,53 @@ func (e *Editor) browsePDF(path string) error {
 			break
 		}
 		act := pdfKeyAct(ev)
-		if act == pdfClose {
-			break
+		switch act {
+		case pdfClose:
+			e.scr.Sync()
+			e.Echo("")
+			return nil
+		case pdfGoto:
+			if n, ok := e.askPage(pages); ok {
+				page = n
+			}
+		default:
+			page = pdfTurn(page, pages, act)
 		}
-		page = pdfTurn(page, pages, act)
 	}
 	e.scr.Sync()
 	e.Echo("")
 	return nil
+}
+
+// askPage reads the number of a page, typed and ended with Enter, and reports
+// it when it is one of the pages. Escape or C-g gives up.
+func (e *Editor) askPage(pages int) (int, bool) {
+	num := ""
+	for {
+		e.Echo("Go to page (1-%d): %s", pages, num)
+		e.Redraw()
+		ev, ok := e.nextKeyEvent()
+		if !ok {
+			return 0, false
+		}
+		switch {
+		case ev.Key() == tcell.KeyEnter:
+			n, err := strconv.Atoi(num)
+			if err != nil || n < 1 || n > pages {
+				e.Echo("no page %q in a PDF of %d pages", num, pages)
+				return 0, false
+			}
+			return n, true
+		case ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlG:
+			return 0, false
+		case ev.Key() == tcell.KeyBackspace || ev.Key() == tcell.KeyBackspace2:
+			if num != "" {
+				num = num[:len(num)-1]
+			}
+		case ev.Key() == tcell.KeyRune && ev.Rune() >= '0' && ev.Rune() <= '9':
+			num += string(ev.Rune())
+		}
+	}
 }
 
 // pdfPages reports how many pages the PDF at path has, as pdfinfo says.

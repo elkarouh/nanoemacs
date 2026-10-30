@@ -20,20 +20,15 @@ func TestPDFKeys(t *testing.T) {
 		{"Down next", tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone), pdfNext},
 		{"Page Down next", tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModNone), pdfNext},
 		{"space next", tcell.NewEventKey(tcell.KeyRune, ' ', tcell.ModNone), pdfNext},
-		{"C-f next", tcell.NewEventKey(tcell.KeyCtrlF, 0, tcell.ModCtrl), pdfNext},
-		{"C-v next", tcell.NewEventKey(tcell.KeyCtrlV, 0, tcell.ModCtrl), pdfNext},
 		{"Left prev", tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone), pdfPrev},
 		{"Page Up prev", tcell.NewEventKey(tcell.KeyPgUp, 0, tcell.ModNone), pdfPrev},
-		{"C-b prev", tcell.NewEventKey(tcell.KeyCtrlB, 0, tcell.ModCtrl), pdfPrev},
 		{"Home first", tcell.NewEventKey(tcell.KeyHome, 0, tcell.ModNone), pdfFirst},
-		{"M-< first", tcell.NewEventKey(tcell.KeyRune, '<', tcell.ModAlt), pdfFirst},
 		{"End last", tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone), pdfLast},
-		{"M-> last", tcell.NewEventKey(tcell.KeyRune, '>', tcell.ModAlt), pdfLast},
+		{"g goes to a page", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModNone), pdfGoto},
 		{"a letter closes", tcell.NewEventKey(tcell.KeyRune, 'q', tcell.ModNone), pdfClose},
 		{"Escape closes", tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone), pdfClose},
-		{"C-n closes", tcell.NewEventKey(tcell.KeyCtrlN, 0, tcell.ModCtrl), pdfClose},
-		{"M-g closes", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfClose},
 		{"0 closes", tcell.NewEventKey(tcell.KeyRune, '0', tcell.ModNone), pdfClose},
+		{"M-g closes", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfClose},
 	}
 	for _, tt := range tests {
 		if got := pdfKeyAct(tt.ev); got != tt.want {

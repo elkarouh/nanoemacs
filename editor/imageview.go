@@ -49,34 +49,53 @@ func (e *Editor) imageView() error {
 
 // showImage draws the image at path over the frame and waits for a key.
 func (e *Editor) showImage(path string) error {
-	data, err := os.ReadFile(path)
+	iw, ih, err := e.drawImage(path)
 	if err != nil {
 		return err
 	}
+	e.Echo("%s (%dx%d) - any key closes", path, iw, ih)
+	e.Redraw()
+	e.nextKey()
+	ui.WriteTTY(e.scr, ui.KittyClear)
+	e.Echo("")
+	e.scr.Sync()
+	return nil
+}
+
+// drawImage draws the picture at path over the frame, without waiting, and
+// reports its size in pixels.
+func (e *Editor) drawImage(path string) (iw, ih int, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, err
+	}
 	png, iw, ih, err := ui.ImagePNG(data)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	e.Redraw()
 	w, h := e.scr.Size()
 	cw, ch := ui.CellPixels(e.scr)
 	cols, rows := ui.FitImage(iw, ih, w, h-1, cw, ch)
 	if cols == 0 {
-		return fmt.Errorf("no room for the image")
+		return 0, 0, fmt.Errorf("no room for the image")
 	}
 	if !ui.WriteTTY(e.scr, ui.KittyDraw(png, (w-cols)/2, (h-1-rows)/2, cols, rows)) {
-		return fmt.Errorf("could not reach the terminal")
+		return 0, 0, fmt.Errorf("could not reach the terminal")
 	}
-	e.Echo("%s (%dx%d) - any key closes", path, iw, ih)
-	e.Redraw()
+	return iw, ih, nil
+}
+
+// nextKey waits for a key press and returns it. ok is false when the editor is
+// ending instead, so there is no key to wait for.
+func (e *Editor) nextKey() (key tcell.Key, ok bool) {
 	for {
 		ev := e.nextEvent()
-		if _, isKey := ev.(*tcell.EventKey); isKey || ev == nil {
-			break
+		if ev == nil {
+			return 0, false
+		}
+		if k, isKey := ev.(*tcell.EventKey); isKey {
+			return k.Key(), true
 		}
 	}
-	ui.WriteTTY(e.scr, ui.KittyClear)
-	e.Echo("")
-	e.scr.Sync()
-	return nil
 }

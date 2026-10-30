@@ -172,6 +172,24 @@ func (e *Editor) yaziAt(start string) error {
 			break
 		}
 		paths = yaziChosen(chooser)
+		// Books are read in a terminal reader, if there is one, and yazi comes
+		// back after it, as after a picture.
+		if bin := epubReader(); bin != "" && onlyEPUBs(paths) {
+			for _, p := range paths {
+				if err := epubRun(bin, p); err != nil {
+					fmt.Fprintf(os.Stderr, "\nnem: %v\n", err)
+					time.Sleep(yaziPause)
+				}
+			}
+			if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
+				if dir := strings.TrimSpace(string(d)); dir != "" {
+					start = dir
+				}
+			}
+			os.Truncate(chooser, 0)
+			paths = nil
+			continue
+		}
 		// Pictures and PDFs are shown, in terminals that can, and yazi comes back
 		// over them, as it does after a refused binary file.
 		if len(paths) > 0 && e.canShowImages() && pictureOrPDF(paths) && e.scr != nil {

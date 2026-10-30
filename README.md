@@ -55,6 +55,19 @@ carries each archive's SHA-256.
 go install github.com/Borderliner/nem/cmd/nem@latest
 ```
 
+**Prerequisites** — nem itself needs nothing to edit. These programs are called
+from its `PATH`:
+
+| Needed for | Program | Install |
+|---|---|---|
+| `nem` with no arguments, and `C-x y` | [yazi](https://yazi-rs.github.io) | `brew install yazi`, `cargo install --locked yazi-fm yazi-cli`, or your package manager |
+| Markdown preview: `.md` files open in it, `C-x x m` shows it for any buffer | [mdcat](https://github.com/swsnr/mdcat) | `cargo install mdcat`, `brew install mdcat`, or your package manager |
+| HTML preview: `.html` and `.htm` files open in it, `C-x x h` shows it for any buffer | [lynx](https://lynx.invisible-island.net) | `dnf install lynx`, `apt install lynx`, or `brew install lynx` |
+
+Without a program, its feature falls back or says what is missing: `nem` with no
+arguments lists the directory in dired, and a preview opens the file as its plain
+text.
+
 <details>
 <summary><b>From source</b></summary>
 
@@ -238,6 +251,10 @@ done together or none.
 - **`.editorconfig`** — indentation, `trim_trailing_whitespace` and
   `insert_final_newline` are honoured, applied to the buffer so the screen shows
   what was written.
+- **Previews** — a `.md` file opens as its mdcat rendering, and a `.html` file as
+  the page as lynx lays it out. `q` shows the source to edit, and `C-x x m` and
+  `C-x x h` preview any buffer. A preview redraws on each save of its source, and
+  quitting nem from a preview leaves your shell in the file's directory.
 
 ### Projects, compiling and the shell
 
@@ -264,6 +281,11 @@ whole of it, as projectile does.
   at point, `M-|` feeds it the region, and `C-u M-|` replaces the region with
   the output, which makes anything a filter: `sort`, `jq .`, `column -t`. `M-&`
   runs one in the background.
+- **Piped input** — `ls -l --color=always | nem` opens the output in a `*stdin*`
+  buffer as it arrives, so a command still running shows its lines as they come.
+  Colours show as colours. The buffer is read-only, and the keyboard still comes
+  from the terminal. Colour codes are only written when the program is told to
+  write them: `ls --color=auto` writes none into a pipe.
 - **The system clipboard** — `C-w` and `M-w` reach it over OSC 52, through SSH
   too, and `C-y` pastes what other programs copied. The terminal's own paste
   key inserts text verbatim, as one undo.

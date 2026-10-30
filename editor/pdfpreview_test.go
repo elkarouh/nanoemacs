@@ -10,26 +10,30 @@ import (
 )
 
 // The viewer's keys, as the events a terminal sends for them.
-func TestPDFKeysAreEmacsLike(t *testing.T) {
+func TestPDFKeys(t *testing.T) {
 	tests := []struct {
 		name string
 		ev   *tcell.EventKey
 		want pdfAct
 	}{
-		{"C-n next", tcell.NewEventKey(tcell.KeyCtrlN, 0, tcell.ModCtrl), pdfNext},
-		{"C-v next", tcell.NewEventKey(tcell.KeyCtrlV, 0, tcell.ModCtrl), pdfNext},
+		{"Right next", tcell.NewEventKey(tcell.KeyRight, 0, tcell.ModNone), pdfNext},
+		{"Down next", tcell.NewEventKey(tcell.KeyDown, 0, tcell.ModNone), pdfNext},
 		{"Page Down next", tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModNone), pdfNext},
-		{"C-p prev", tcell.NewEventKey(tcell.KeyCtrlP, 0, tcell.ModCtrl), pdfPrev},
-		{"M-v prev", tcell.NewEventKey(tcell.KeyRune, 'v', tcell.ModAlt), pdfPrev},
+		{"space next", tcell.NewEventKey(tcell.KeyRune, ' ', tcell.ModNone), pdfNext},
+		{"C-f next", tcell.NewEventKey(tcell.KeyCtrlF, 0, tcell.ModCtrl), pdfNext},
+		{"C-v next", tcell.NewEventKey(tcell.KeyCtrlV, 0, tcell.ModCtrl), pdfNext},
+		{"Left prev", tcell.NewEventKey(tcell.KeyLeft, 0, tcell.ModNone), pdfPrev},
+		{"Page Up prev", tcell.NewEventKey(tcell.KeyPgUp, 0, tcell.ModNone), pdfPrev},
+		{"C-b prev", tcell.NewEventKey(tcell.KeyCtrlB, 0, tcell.ModCtrl), pdfPrev},
+		{"Home first", tcell.NewEventKey(tcell.KeyHome, 0, tcell.ModNone), pdfFirst},
 		{"M-< first", tcell.NewEventKey(tcell.KeyRune, '<', tcell.ModAlt), pdfFirst},
+		{"End last", tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone), pdfLast},
 		{"M-> last", tcell.NewEventKey(tcell.KeyRune, '>', tcell.ModAlt), pdfLast},
-		{"M-g goes to a page", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfGoto},
-		{"g goes to a page too", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModNone), pdfGoto},
-		{"+ zooms in", tcell.NewEventKey(tcell.KeyRune, '+', tcell.ModNone), pdfZoomIn},
-		{"- zooms out", tcell.NewEventKey(tcell.KeyRune, '-', tcell.ModNone), pdfZoomOut},
-		{"0 fits the width", tcell.NewEventKey(tcell.KeyRune, '0', tcell.ModNone), pdfFit},
 		{"a letter closes", tcell.NewEventKey(tcell.KeyRune, 'q', tcell.ModNone), pdfClose},
 		{"Escape closes", tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone), pdfClose},
+		{"C-n closes", tcell.NewEventKey(tcell.KeyCtrlN, 0, tcell.ModCtrl), pdfClose},
+		{"M-g closes", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfClose},
+		{"0 closes", tcell.NewEventKey(tcell.KeyRune, '0', tcell.ModNone), pdfClose},
 	}
 	for _, tt := range tests {
 		if got := pdfKeyAct(tt.ev); got != tt.want {
@@ -51,7 +55,6 @@ func TestPDFTurnStaysWithinThePages(t *testing.T) {
 		{3, pdfPrev, 2},
 		{2, pdfFirst, 1},
 		{2, pdfLast, 5},
-		{2, pdfZoomIn, 2}, // not a move
 	}
 	for _, tt := range tests {
 		if got := pdfTurn(tt.page, 5, tt.act); got != tt.want {
@@ -71,10 +74,10 @@ func TestPDFPagesReadsPdfinfo(t *testing.T) {
 	}
 }
 
-// renderPDFPage asks pdftoppm for the one page, at the size asked for, and
-// returns the PNG it wrote. The fake records its arguments and writes a PNG
-// beside the base name it gets last, as the real one does with -singlefile.
-func TestRenderPDFPageAsksForThatPageAtThatSize(t *testing.T) {
+// renderPDFPage asks pdftoppm for the one page and returns the PNG it wrote.
+// The fake records its arguments and writes a PNG beside the base name it gets
+// last, as the real one does with -singlefile.
+func TestRenderPDFPageAsksForThatPage(t *testing.T) {
 	dir := t.TempDir()
 	args := filepath.Join(dir, "args")
 	src := filepath.Join(dir, "src.png")
@@ -83,7 +86,7 @@ func TestRenderPDFPageAsksForThatPageAtThatSize(t *testing.T) {
 	}
 	fakeTool(t, "pdftoppm", `echo "$@" > '`+args+`'; for last; do :; done; cp '`+src+`' "$last.png"`)
 
-	png, err := renderPDFPage("paper.pdf", 4, pdfSize{dpi: 150}, filepath.Join(dir, "p4"))
+	png, err := renderPDFPage("paper.pdf", 4, filepath.Join(dir, "p4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,16 +94,8 @@ func TestRenderPDFPageAsksForThatPageAtThatSize(t *testing.T) {
 		t.Errorf("rendered %q, want p4.png", png)
 	}
 	got, _ := os.ReadFile(args)
-	if !strings.Contains(string(got), "-f 4 -l 4") || !strings.Contains(string(got), "-r 150") {
-		t.Errorf("pdftoppm was given %q, want page 4 at 150 dpi", got)
-	}
-
-	if _, err := renderPDFPage("paper.pdf", 4, pdfSize{dpi: 150, fitWidth: 900}, filepath.Join(dir, "f4")); err != nil {
-		t.Fatal(err)
-	}
-	got, _ = os.ReadFile(args)
-	if !strings.Contains(string(got), "-scale-to-x 900 -scale-to-y -1") {
-		t.Errorf("pdftoppm was given %q, want the page scaled to 900 pixels wide", got)
+	if !strings.Contains(string(got), "-f 4 -l 4") {
+		t.Errorf("pdftoppm was given %q, want the one page 4", got)
 	}
 }
 

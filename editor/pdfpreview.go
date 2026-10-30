@@ -140,6 +140,9 @@ func (e *Editor) browsePDF(path string) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
+	// The picture stays up while keys are read, the page prompt included, and
+	// is cleared once the viewer closes.
+	defer ui.WriteTTY(e.scr, ui.KittyClear)
 
 	page, size, seq := 1, pdfSize{dpi: pdfDefaultDPI}, 0
 	for {
@@ -148,13 +151,14 @@ func (e *Editor) browsePDF(path string) error {
 		if err != nil {
 			return err
 		}
+		// One picture at a time: the last one is cleared before the next is drawn.
+		ui.WriteTTY(e.scr, ui.KittyClear)
 		if _, _, err := e.drawImage(png); err != nil {
 			return err
 		}
 		e.Echo("%s, page %d of %d - n p M-< M-> M-g + - 0; any other key closes", filepath.Base(path), page, pages)
 		e.Redraw()
 		ev, ok := e.nextKeyEvent()
-		ui.WriteTTY(e.scr, ui.KittyClear)
 		if !ok {
 			break
 		}
@@ -199,6 +203,7 @@ func (e *Editor) askPage(pages int) (int, bool) {
 	num := ""
 	for {
 		e.Echo("Go to page (1-%d): %s", pages, num)
+		e.Redraw()
 		ev, ok := e.nextKeyEvent()
 		if !ok {
 			return 0, false

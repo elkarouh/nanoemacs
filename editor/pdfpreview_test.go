@@ -24,6 +24,7 @@ func TestPDFKeysAreEmacsLike(t *testing.T) {
 		{"M-< first", tcell.NewEventKey(tcell.KeyRune, '<', tcell.ModAlt), pdfFirst},
 		{"M-> last", tcell.NewEventKey(tcell.KeyRune, '>', tcell.ModAlt), pdfLast},
 		{"M-g goes to a page", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfGoto},
+		{"g goes to a page too", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModNone), pdfGoto},
 		{"+ zooms in", tcell.NewEventKey(tcell.KeyRune, '+', tcell.ModNone), pdfZoomIn},
 		{"- zooms out", tcell.NewEventKey(tcell.KeyRune, '-', tcell.ModNone), pdfZoomOut},
 		{"0 fits the width", tcell.NewEventKey(tcell.KeyRune, '0', tcell.ModNone), pdfFit},

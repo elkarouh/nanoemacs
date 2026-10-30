@@ -15,8 +15,8 @@ import (
 // A PDF chosen in yazi opens in a viewer that draws one page at a time, each
 // rendered by pdftoppm, over the window. Its keys follow emacs: C-n, C-f, C-v
 // and Page Down go to the next page, C-p, C-b, M-v and Page Up to the previous,
-// M-< and M-> to the first and last, and M-g goes to a page the number of which
-// is typed. + and - zoom, and 0 fits the page to the window's width. Any other
+// M-< and M-> to the first and last, and M-g (or plain g, for a terminal that
+// does not send Meta) goes to a page the number of which is typed. + and - zoom, and 0 fits the page to the window's width. Any other
 // key closes the viewer back to yazi. It needs the same terminal as a picture;
 // elsewhere yazi refuses a PDF as any binary file.
 
@@ -74,6 +74,8 @@ func pdfKeyAct(ev *tcell.EventKey) pdfAct {
 			return pdfZoomOut
 		case '0':
 			return pdfFit
+		case 'g':
+			return pdfGoto
 		}
 	}
 	return pdfClose

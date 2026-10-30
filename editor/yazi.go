@@ -172,11 +172,18 @@ func (e *Editor) yaziAt(start string) error {
 			break
 		}
 		paths = yaziChosen(chooser)
-		// Books are read in a terminal reader, if there is one, and yazi comes
-		// back after it, as after a picture.
-		if bin := epubReader(); bin != "" && onlyEPUBs(paths) {
+		// Books go to the system's app, or else a terminal reader, if there is
+		// one, and yazi comes back after it, as after a picture.
+		graphical, bin := e.ext.available() == nil, epubReader()
+		if onlyEPUBs(paths) && (graphical || bin != "") {
 			for _, p := range paths {
-				if err := epubRun(bin, p); err != nil {
+				var err error
+				if graphical {
+					err = e.launch(p)
+				} else {
+					err = epubRun(bin, p)
+				}
+				if err != nil {
 					fmt.Fprintf(os.Stderr, "\nnem: %v\n", err)
 					time.Sleep(yaziPause)
 				}

@@ -36,7 +36,12 @@ type previewState struct {
 	buf    *text.Buffer
 	lines  map[int][]ui.SymbolSpan
 	shown  bool
+	render renderer
 }
+
+// renderer turns a source's text into the text its preview shows, with the
+// colours it wants as ANSI codes. mdcat and w3m are both renderers.
+type renderer func(src string) ([]byte, error)
 
 // previewBindings are a preview's keys: the viewer's. Nothing in a preview is
 // typed into, so these are its commands, and a letter with none does nothing
@@ -66,8 +71,10 @@ func newPreviewKeymap() (*keymap.Map, error) {
 func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 	cmds := []command.Command{
 		{Name: "markdown-preview", Doc: "Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again.",
-			Fn: func(command.Env) error { return e.markdownPreview() }},
-		{Name: "preview-close", Doc: "Close the Markdown preview and show the buffer it renders in its place.",
+			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, mdcatRender) }},
+		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as w3m (or lynx) lays it out. The preview is updated on each save of the buffer; q shows the buffer again.",
+			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, htmlRender) }},
+		{Name: "preview-close", Doc: "Close the preview and show the buffer it renders in its place.",
 			Fn: func(command.Env) error { return e.previewClose() }},
 	}
 	for _, c := range cmds {
@@ -103,14 +110,13 @@ func (e *Editor) VisitOpened(b *text.Buffer) {
 	e.active.Visit(st.buf)
 }
 
-// markdownPreview shows the active buffer rendered as Markdown, in its place.
-// A preview is not previewed again.
-func (e *Editor) markdownPreview() error {
-	src := e.active.Buf
+// showRendered shows src rendered by render, in its place. A preview is not
+// previewed again.
+func (e *Editor) showRendered(src *text.Buffer, render renderer) error {
 	if e.previewOf(src) != nil {
 		return nil
 	}
-	st, err := e.renderPreview(src)
+	st, err := e.renderWith(src, render)
 	if err != nil {
 		return err
 	}
@@ -125,31 +131,24 @@ func (e *Editor) markdownPreview() error {
 func (e *Editor) previewClose() error {
 	st := e.previewOf(e.active.Buf)
 	if st == nil {
-		return fmt.Errorf("this buffer is not a Markdown preview")
+		return fmt.Errorf("this buffer is not a preview")
 	}
 	e.hidePreview(st)
 	return nil
 }
 
-// renderPreview renders src's text into its preview, creating the preview on
-// first use. The text rendered is src's, saved or not.
+// renderPreview renders src's text as Markdown into its preview, creating the
+// preview on first use. The text rendered is src's, saved or not.
 func (e *Editor) renderPreview(src *text.Buffer) (*previewState, error) {
-	mdcat, err := exec.LookPath("mdcat")
+	return e.renderWith(src, mdcatRender)
+}
+
+// renderWith renders src's text with render into its preview, creating the
+// preview on first use.
+func (e *Editor) renderWith(src *text.Buffer, render renderer) (*previewState, error) {
+	out, err := render(string(src.Text(text.Pos{}, src.End())))
 	if err != nil {
-		return nil, fmt.Errorf("the Markdown preview needs mdcat, which is not on the PATH")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), markdownTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, mdcat, "--ansi", "--theme", "dark", "--local",
-		"--no-pager", "--columns", fmt.Sprint(previewWidth), "-")
-	cmd.Stdin = strings.NewReader(string(src.Text(text.Pos{}, src.End())))
-	out, err := cmd.Output()
-	if err != nil {
-		msg := err.Error()
-		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
-			msg = vcFirstLine(string(ee.Stderr), err)
-		}
-		return nil, fmt.Errorf("mdcat: %s", msg)
+		return nil, err
 	}
 
 	st := e.previews[src]
@@ -157,6 +156,7 @@ func (e *Editor) renderPreview(src *text.Buffer) (*previewState, error) {
 		st = &previewState{source: src, buf: text.NewBuffer()}
 		e.previews[src] = st
 	}
+	st.render = render
 	plain, spans := ansistyle.Parse(string(out))
 	st.buf.SetReadOnly(false)
 	if st.buf.End() != (text.Pos{}) {
@@ -225,7 +225,7 @@ func (e *Editor) refreshPreviews(src *text.Buffer) {
 	if e.previews[src] == nil {
 		return
 	}
-	if _, err := e.renderPreview(src); err != nil {
+	if _, err := e.renderWith(src, e.previews[src].render); err != nil {
 		e.Echo("Preview not updated: %s", err.Error())
 	}
 }
@@ -261,6 +261,48 @@ func previewLines(plain string, spans []ansistyle.Span) map[int][]ui.SymbolSpan 
 		}
 	}
 	return out
+}
+
+// mdcatRender renders Markdown with mdcat, in colour.
+func mdcatRender(src string) ([]byte, error) {
+	mdcat, err := exec.LookPath("mdcat")
+	if err != nil {
+		return nil, fmt.Errorf("the Markdown preview needs mdcat, which is not on the PATH")
+	}
+	return runRenderer(mdcat, []string{"--ansi", "--theme", "dark", "--local",
+		"--no-pager", "--columns", fmt.Sprint(previewWidth), "-"}, src)
+}
+
+// htmlRender lays HTML out as plain text, with w3m, or with lynx when w3m is not
+// on the PATH. Both print the page as text, which needs no colour codes.
+func htmlRender(src string) ([]byte, error) {
+	if w3m, err := exec.LookPath("w3m"); err == nil {
+		return runRenderer(w3m, []string{"-dump", "-T", "text/html",
+			"-cols", fmt.Sprint(previewWidth)}, src)
+	}
+	if lynx, err := exec.LookPath("lynx"); err == nil {
+		return runRenderer(lynx, []string{"-stdin", "-dump",
+			fmt.Sprintf("-width=%d", previewWidth)}, src)
+	}
+	return nil, fmt.Errorf("the HTML preview needs w3m or lynx, which are not on the PATH")
+}
+
+// runRenderer runs tool with args, src on its stdin, and returns what it
+// prints. A tool that fails is reported by its first line of stderr.
+func runRenderer(tool string, args []string, src string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), markdownTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, tool, args...)
+	cmd.Stdin = strings.NewReader(src)
+	out, err := cmd.Output()
+	if err != nil {
+		msg := err.Error()
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			msg = vcFirstLine(string(ee.Stderr), err)
+		}
+		return nil, fmt.Errorf("%s: %s", filepath.Base(tool), msg)
+	}
+	return out, nil
 }
 
 // tcellStyle is an ansistyle style as the screen draws it.

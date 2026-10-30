@@ -140,6 +140,7 @@ var defaultBindings = []struct{ Spec, Command string }{
 
 	// The Markdown preview. See markdown.go.
 	{"C-x x m", "markdown-preview"},
+	{"C-x x h", "html-preview"},
 
 	// Buffers.
 	{"C-x b", "switch-to-buffer"},

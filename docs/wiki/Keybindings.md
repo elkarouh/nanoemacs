@@ -175,6 +175,7 @@ These work everywhere, unless a mode or a prompt below gives a key a meaning of 
 | Key | Command | Does |
 |---|---|---|
 | `C-x x m` | `markdown-preview` | Show the buffer rendered as Markdown, in its place, as mdcat renders it. |
+| `C-x x h` | `html-preview` | Show the buffer rendered as HTML text, in its place, as w3m (or lynx) lays it out. |
 
 ### Buffers
 

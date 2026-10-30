@@ -693,6 +693,9 @@ func (e *Editor) OpenFile(path string) (*text.Buffer, error) {
 		if !fi.Mode().IsRegular() {
 			return nil, fmt.Errorf("%s is not a regular file", filepath.Base(abs))
 		}
+		if isEPUBFile(abs) {
+			return e.openEPUB(abs)
+		}
 		elsewhere, err := e.openElsewhere(abs)
 		if err != nil {
 			return nil, err

@@ -80,15 +80,6 @@ func (e *Editor) openElsewhere(abs string) (bool, error) {
 	if isImageFile(abs) && e.canShowImages() {
 		return true, e.showImage(abs)
 	}
-	if isEPUBFile(abs) {
-		// The system's app first; a terminal reader when there is none.
-		if e.ext.available() == nil {
-			return true, e.launch(abs)
-		}
-		if bin := epubReader(); bin != "" {
-			return true, e.readEPUB(bin, abs)
-		}
-	}
 	isText, err := sysopen.IsText(abs)
 	if err != nil || isText {
 		// Unreadable is for LoadFile to report, with its own error.

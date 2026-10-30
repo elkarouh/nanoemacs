@@ -1,72 +1,65 @@
 package editor
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/Borderliner/nem/text"
 )
 
-// An EPUB is read in a terminal reader, when one is installed: nem steps aside
-// and the reader has the terminal, as yazi does, until it quits. Nothing is
-// converted or drawn by nem itself.
+// An EPUB is opened as its HTML: pandoc converts the book to HTML, and the
+// HTML preview lays it out with lynx, as it does for an .html file. The HTML
+// is kept in a read-only buffer with no file behind it, so nothing is written
+// to disk and saving cannot overwrite the book.
 
-// epubReaders are the terminal EPUB readers nem looks for, in order of
-// preference. Each takes the book as its one argument.
-var epubReaders = []string{"epy", "baca", "bk"}
+// epubTimeout bounds one pandoc run. A whole book takes longer to convert than
+// one Markdown file does to render.
+const epubTimeout = 60 * time.Second
 
 // isEPUBFile reports whether path names an EPUB.
 func isEPUBFile(path string) bool {
 	return strings.EqualFold(filepath.Ext(path), ".epub")
 }
 
-// epubReader returns the path of the first terminal EPUB reader on the PATH, or
-// "" when there is none.
-func epubReader() string {
-	for _, name := range epubReaders {
-		if bin, err := exec.LookPath(name); err == nil {
-			return bin
-		}
+// epubHTML converts the EPUB at path to HTML with pandoc.
+func epubHTML(path string) ([]byte, error) {
+	pandoc, err := exec.LookPath("pandoc")
+	if err != nil {
+		return nil, fmt.Errorf("an EPUB needs pandoc, which is not on the PATH")
 	}
-	return ""
+	ctx, cancel := context.WithTimeout(context.Background(), epubTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, pandoc, "--from=epub", "--to=html", path).Output()
+	if err != nil {
+		msg := err.Error()
+		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
+			msg = vcFirstLine(string(ee.Stderr), err)
+		}
+		return nil, fmt.Errorf("pandoc: %s", msg)
+	}
+	return out, nil
 }
 
-// onlyEPUBs reports whether paths is not empty and every one is an EPUB.
-func onlyEPUBs(paths []string) bool {
-	for _, p := range paths {
-		if !isEPUBFile(p) {
-			return false
-		}
+// openEPUB opens the EPUB at path as the HTML preview of its converted text, and
+// returns the buffer to show. Without lynx the HTML source is shown instead,
+// with the reason on the echo line.
+func (e *Editor) openEPUB(path string) (*text.Buffer, error) {
+	html, err := epubHTML(path)
+	if err != nil {
+		return nil, err
 	}
-	return len(paths) > 0
-}
-
-// epubRun runs the reader at bin on path, on nem's terminal. It is a variable
-// so the test binary can replace it: a test run must never start a real reader.
-var epubRun = func(bin, path string) error {
-	cmd := exec.Command(bin, path)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s: %w", filepath.Base(bin), err)
+	src := text.FromBytes(html)
+	src.SetReadOnly(true)
+	e.adopt(src, e.uniqueName(filepath.Base(path)))
+	st, err := e.renderWith(src, htmlRender)
+	if err != nil {
+		e.Echo("%v", err)
+		return src, nil
 	}
-	return nil
-}
-
-// readEPUB reads the EPUB at path in the terminal reader at bin, with nem
-// stepped aside.
-func (e *Editor) readEPUB(bin, path string) error {
-	if e.scr != nil {
-		if err := e.scr.Suspend(); err != nil {
-			return err
-		}
-	}
-	runErr := epubRun(bin, path)
-	if e.scr != nil {
-		if err := e.scr.Resume(); err != nil {
-			return err
-		}
-		e.scr.Sync()
-	}
-	return runErr
+	e.showPreview(st)
+	return st.buf, nil
 }

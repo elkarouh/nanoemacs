@@ -138,7 +138,7 @@ func nonTextNames(paths []string) []string {
 		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
 			continue
 		}
-		if isText, err := sysopen.IsText(p); err == nil && !isText && !isArchive(p) {
+		if isText, err := sysopen.IsText(p); err == nil && !isText && !isArchive(p) && !isEPUBFile(p) {
 			out = append(out, filepath.Base(p))
 		}
 	}
@@ -172,31 +172,6 @@ func (e *Editor) yaziAt(start string) error {
 			break
 		}
 		paths = yaziChosen(chooser)
-		// Books go to the system's app, or else a terminal reader, if there is
-		// one, and yazi comes back after it, as after a picture.
-		graphical, bin := e.ext.available() == nil, epubReader()
-		if onlyEPUBs(paths) && (graphical || bin != "") {
-			for _, p := range paths {
-				var err error
-				if graphical {
-					err = e.launch(p)
-				} else {
-					err = epubRun(bin, p)
-				}
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "\nnem: %v\n", err)
-					time.Sleep(yaziPause)
-				}
-			}
-			if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
-				if dir := strings.TrimSpace(string(d)); dir != "" {
-					start = dir
-				}
-			}
-			os.Truncate(chooser, 0)
-			paths = nil
-			continue
-		}
 		// Pictures and PDFs are shown, in terminals that can, and yazi comes back
 		// over them, as it does after a refused binary file.
 		if len(paths) > 0 && e.canShowImages() && pictureOrPDF(paths) && e.scr != nil {

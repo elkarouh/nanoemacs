@@ -40,7 +40,7 @@ type previewState struct {
 }
 
 // renderer turns a source's text into the text its preview shows, with the
-// colours it wants as ANSI codes. mdcat and w3m are both renderers.
+// colours it wants as ANSI codes. mdcat and lynx are both renderers.
 type renderer func(src string) ([]byte, error)
 
 // previewBindings are a preview's keys: the viewer's. Nothing in a preview is
@@ -72,7 +72,7 @@ func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 	cmds := []command.Command{
 		{Name: "markdown-preview", Doc: "Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, mdcatRender) }},
-		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as w3m (or lynx) lays it out. The preview is updated on each save of the buffer; q shows the buffer again.",
+		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as lynx lays it out. The preview is updated on each save of the buffer; q shows the buffer again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, htmlRender) }},
 		{Name: "preview-close", Doc: "Close the preview and show the buffer it renders in its place.",
 			Fn: func(command.Env) error { return e.previewClose() }},
@@ -273,18 +273,15 @@ func mdcatRender(src string) ([]byte, error) {
 		"--no-pager", "--columns", fmt.Sprint(previewWidth), "-"}, src)
 }
 
-// htmlRender lays HTML out as plain text, with w3m, or with lynx when w3m is not
-// on the PATH. Both print the page as text, which needs no colour codes.
+// htmlRender lays HTML out as plain text, with lynx, which prints the page
+// without colour codes.
 func htmlRender(src string) ([]byte, error) {
-	if w3m, err := exec.LookPath("w3m"); err == nil {
-		return runRenderer(w3m, []string{"-dump", "-T", "text/html",
-			"-cols", fmt.Sprint(previewWidth)}, src)
+	lynx, err := exec.LookPath("lynx")
+	if err != nil {
+		return nil, fmt.Errorf("the HTML preview needs lynx, which is not on the PATH")
 	}
-	if lynx, err := exec.LookPath("lynx"); err == nil {
-		return runRenderer(lynx, []string{"-stdin", "-dump",
-			fmt.Sprintf("-width=%d", previewWidth)}, src)
-	}
-	return nil, fmt.Errorf("the HTML preview needs w3m or lynx, which are not on the PATH")
+	return runRenderer(lynx, []string{"-stdin", "-dump",
+		fmt.Sprintf("-width=%d", previewWidth)}, src)
 }
 
 // runRenderer runs tool with args, src on its stdin, and returns what it

@@ -124,7 +124,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `list-buffers` | `C-x C-b` | Display a listing of every live buffer. |
 | `mark-whole-buffer` | `C-x h` | Put point at the start of the buffer and the mark at the end. |
 | `markdown-preview` | `C-x x m` | Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again. |
-| `html-preview` | `C-x x h` | Show the buffer rendered as HTML text, in its place, as w3m (or lynx) lays it out. The preview is updated on each save of the buffer; q shows the buffer again. |
+| `html-preview` | `C-x x h` | Show the buffer rendered as HTML text, in its place, as lynx lays it out. The preview is updated on each save of the buffer; q shows the buffer again. |
 | `move-beginning-of-line` | `C-a` `<home>` | Move point to the start of the line. |
 | `move-end-of-line` | `C-e` `<end>` | Move point to the end of the line. |
 | `move-lines-down` | `M-<down>` | Move the region's lines, or the current line, one line down. |

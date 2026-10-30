@@ -92,7 +92,7 @@ func TestPreviewKeepsTheSourceDirectory(t *testing.T) {
 	}
 }
 
-// An .html file opens as its preview, as an .md file does, and q turns the
+// An .html file opens as its preview, as an .md file does, and e turns the
 // preview into the source to edit.
 func TestHTMLFileOpensAsPreview(t *testing.T) {
 	onlyTool(t, "lynx", `printf 'LYNX:'; /bin/cat`)
@@ -113,7 +113,7 @@ func TestHTMLFileOpensAsPreview(t *testing.T) {
 	if got := bufferString(e.active.Buf); got != "LYNX:<p>hi</p>" {
 		t.Errorf("preview shows %q, want lynx's output", got)
 	}
-	press(t, e, "q")
+	press(t, e, "e")
 	if e.active.Buf != src {
 		t.Errorf("q showed %q, want the source", e.BufferName(e.active.Buf))
 	}

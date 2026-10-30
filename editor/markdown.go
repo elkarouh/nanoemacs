@@ -17,7 +17,7 @@ import (
 )
 
 // The Markdown preview takes the place of the buffer it renders: in that
-// buffer's tab, and in every window that showed it. q puts the buffer back.
+// buffer's tab, and in every window that showed it. e puts the buffer back.
 // The rendering is held apart from the buffer list, so it never gets a tab of
 // its own. mdcat is the external tool: it does the Markdown, and its colour codes
 // are read by the ansistyle package and drawn as styled spans. The rendering is
@@ -48,7 +48,7 @@ type renderer func(src string) ([]byte, error)
 // but say the buffer is read-only. Every other key falls through to the global
 // map, so C-s still searches.
 var previewBindings = []struct{ Spec, Command string }{
-	{"q", "preview-close"},
+	{"e", "preview-close"},
 	{"SPC", "scroll-up-command"},
 	{"b", "scroll-down-command"},
 	{"<", "beginning-of-buffer"},
@@ -70,9 +70,9 @@ func newPreviewKeymap() (*keymap.Map, error) {
 // registerMarkdownCommands adds the preview commands.
 func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 	cmds := []command.Command{
-		{Name: "markdown-preview", Doc: "Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again.",
+		{Name: "markdown-preview", Doc: "Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; e shows the buffer to edit again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, mdcatRender) }},
-		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as lynx lays it out. An .html file opens this way; the preview is updated on each save of the buffer; q shows the buffer again.",
+		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as lynx lays it out. An .html file opens this way; the preview is updated on each save of the buffer; e shows the buffer to edit again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, htmlRender) }},
 		{Name: "preview-close", Doc: "Close the preview and show the buffer it renders in its place.",
 			Fn: func(command.Env) error { return e.previewClose() }},
@@ -100,7 +100,7 @@ func previewRenderer(path string) renderer {
 
 // VisitOpened shows b, a buffer just opened from a file, in the active window.
 // A .md file is shown as its Markdown preview instead, and an .html or .htm
-// file as its HTML preview; q turns the preview into the editable buffer. Without
+// file as its HTML preview; e turns the preview into the editable buffer. Without
 // the renderer the file is shown as it is, since the preview is a convenience
 // and not something to fail an open over.
 func (e *Editor) VisitOpened(b *text.Buffer) {

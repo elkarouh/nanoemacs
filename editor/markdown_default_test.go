@@ -8,7 +8,7 @@ import (
 	"github.com/Borderliner/nem/text"
 )
 
-// TestMarkdownFileOpensAsPreview: a .md file opens in its preview, and q turns
+// TestMarkdownFileOpensAsPreview: a .md file opens in its preview, and e turns
 // the preview back into the editable file.
 func TestMarkdownFileOpensAsPreview(t *testing.T) {
 	fakeTool(t, "mdcat", `printf 'RENDERED\n'`)
@@ -30,7 +30,7 @@ func TestMarkdownFileOpensAsPreview(t *testing.T) {
 		t.Errorf("preview shows %q, want the rendering", got)
 	}
 
-	press(t, e, "q")
+	press(t, e, "e")
 	if e.previewOf(e.active.Buf) != nil {
 		t.Fatal("q left the preview showing")
 	}
@@ -38,7 +38,7 @@ func TestMarkdownFileOpensAsPreview(t *testing.T) {
 		t.Errorf("q showed a different buffer, want the source file's")
 	}
 	if got := bufferString(e.active.Buf); got != "# Notes" {
-		t.Errorf("after q the buffer reads %q, want the file's text", got)
+		t.Errorf("after e the buffer reads %q, want the file's text", got)
 	}
 }
 

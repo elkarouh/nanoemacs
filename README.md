@@ -261,7 +261,7 @@ done together or none.
   `insert_final_newline` are honoured, applied to the buffer so the screen shows
   what was written.
 - **Previews** — a `.md` file opens as its mdcat rendering, and a `.html` file as
-  the page as lynx lays it out. `q` shows the source to edit. `C-x x m` and
+  the page as lynx lays it out. `e` shows the source to edit. `C-x x m` and
   `C-x x h` preview any buffer, and a preview redraws on each save of its source.
   Quitting nem from a preview leaves your shell in the file's directory.
 

@@ -91,3 +91,48 @@ func TestPreviewKeepsTheSourceDirectory(t *testing.T) {
 		t.Errorf("ExitDir with the preview showing = %q, want %q", got, dir)
 	}
 }
+
+// An .html file opens as its preview, as an .md file does, and q turns the
+// preview into the source to edit.
+func TestHTMLFileOpensAsPreview(t *testing.T) {
+	onlyTool(t, "lynx", `printf 'LYNX:'; /bin/cat`)
+	e, _ := newTestEditor(t)
+	path := filepath.Join(t.TempDir(), "page.html")
+	if err := os.WriteFile(path, []byte("<p>hi</p>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src, err := e.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.VisitOpened(src)
+
+	if e.previewOf(e.active.Buf) == nil {
+		t.Fatalf("active buffer is %q, not an HTML preview", e.BufferName(e.active.Buf))
+	}
+	if got := bufferString(e.active.Buf); got != "LYNX:<p>hi</p>" {
+		t.Errorf("preview shows %q, want lynx's output", got)
+	}
+	press(t, e, "q")
+	if e.active.Buf != src {
+		t.Errorf("q showed %q, want the source", e.BufferName(e.active.Buf))
+	}
+}
+
+// Without lynx an .html file opens as its text rather than failing.
+func TestHTMLFileOpensAsTextWithoutLynx(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	e, _ := newTestEditor(t)
+	path := filepath.Join(t.TempDir(), "page.html")
+	if err := os.WriteFile(path, []byte("<p>hi</p>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src, err := e.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.VisitOpened(src)
+	if e.active.Buf != src {
+		t.Errorf("active buffer is %q, want the source", e.BufferName(e.active.Buf))
+	}
+}

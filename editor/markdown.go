@@ -72,7 +72,7 @@ func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 	cmds := []command.Command{
 		{Name: "markdown-preview", Doc: "Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; q shows the buffer again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, mdcatRender) }},
-		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as lynx lays it out. The preview is updated on each save of the buffer; q shows the buffer again.",
+		{Name: "html-preview", Doc: "Show the buffer rendered as HTML text, in its place, as lynx lays it out. An .html file opens this way; the preview is updated on each save of the buffer; q shows the buffer again.",
 			Fn: func(command.Env) error { return e.showRendered(e.active.Buf, htmlRender) }},
 		{Name: "preview-close", Doc: "Close the preview and show the buffer it renders in its place.",
 			Fn: func(command.Env) error { return e.previewClose() }},
@@ -86,21 +86,30 @@ func registerMarkdownCommands(e *Editor, reg *command.Registry) error {
 	return nil
 }
 
-// isMarkdownFile reports whether path is a .md file, which opens as its preview.
-func isMarkdownFile(path string) bool {
-	return strings.EqualFold(filepath.Ext(path), ".md")
+// previewRenderer is the renderer that a file opens its preview with, by its
+// extension, or nil for a file that opens as its text.
+func previewRenderer(path string) renderer {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".md":
+		return mdcatRender
+	case ".html", ".htm":
+		return htmlRender
+	}
+	return nil
 }
 
 // VisitOpened shows b, a buffer just opened from a file, in the active window.
-// A .md file is shown as its Markdown preview instead, and q turns the preview
-// into the editable buffer. Without mdcat the file is shown as it is, since the
-// preview is a convenience and not something to fail an open over.
+// A .md file is shown as its Markdown preview instead, and an .html or .htm
+// file as its HTML preview; q turns the preview into the editable buffer. Without
+// the renderer the file is shown as it is, since the preview is a convenience
+// and not something to fail an open over.
 func (e *Editor) VisitOpened(b *text.Buffer) {
 	e.active.Visit(b)
-	if !isMarkdownFile(b.Path()) {
+	render := previewRenderer(b.Path())
+	if render == nil {
 		return
 	}
-	st, err := e.renderPreview(b)
+	st, err := e.renderWith(b, render)
 	if err != nil {
 		return
 	}
@@ -135,12 +144,6 @@ func (e *Editor) previewClose() error {
 	}
 	e.hidePreview(st)
 	return nil
-}
-
-// renderPreview renders src's text as Markdown into its preview, creating the
-// preview on first use. The text rendered is src's, saved or not.
-func (e *Editor) renderPreview(src *text.Buffer) (*previewState, error) {
-	return e.renderWith(src, mdcatRender)
 }
 
 // renderWith renders src's text with render into its preview, creating the

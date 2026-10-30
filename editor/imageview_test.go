@@ -11,7 +11,7 @@ func TestIsImageFile(t *testing.T) {
 			t.Errorf("isImageFile(%q) = %v, want %v", path, got, want)
 		}
 	}
-	if !allImages([]string{"a.png", "b.gif"}) || allImages([]string{"a.png", "b.go"}) {
-		t.Error("allImages misjudged a mix")
+	if !pictureOrPDF([]string{"a.png", "b.gif", "c.pdf"}) || pictureOrPDF([]string{"a.png", "b.go"}) {
+		t.Error("pictureOrPDF misjudged a mix")
 	}
 }

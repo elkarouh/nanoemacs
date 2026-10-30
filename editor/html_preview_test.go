@@ -64,3 +64,30 @@ func TestHTMLPreviewKey(t *testing.T) {
 		t.Errorf("preview shows %q, want the page as lynx printed it", got)
 	}
 }
+
+// While a preview is showing, the directory of its source still counts: a
+// shell left by quitting nem with the preview up must be in the file's
+// directory, not the working directory.
+func TestPreviewKeepsTheSourceDirectory(t *testing.T) {
+	onlyTool(t, "lynx", `printf 'LYNX:'; /bin/cat`)
+	e, _ := newTestEditor(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "page.html")
+	if err := os.WriteFile(path, []byte("<p>hi</p>\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src, err := e.OpenFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.active.Visit(src)
+	if err := e.showRendered(src, htmlRender); err != nil {
+		t.Fatal(err)
+	}
+	if e.active.Buf == src {
+		t.Fatal("the preview is not showing")
+	}
+	if got := e.ExitDir(); got != dir {
+		t.Errorf("ExitDir with the preview showing = %q, want %q", got, dir)
+	}
+}

@@ -666,8 +666,12 @@ func (e *Editor) diredJump() error {
 }
 
 // bufferDir is the directory b belongs to: the one it lists, or its file's.
-// Empty means neither, which callers read as the working directory.
+// Empty means neither, which callers read as the working directory. A preview
+// belongs to its source's directory, since it has no file of its own.
 func (e *Editor) bufferDir(b *text.Buffer) string {
+	if st := e.previewOf(b); st != nil {
+		b = st.source
+	}
 	if st := e.diredOf(b); st != nil {
 		return st.dir
 	}

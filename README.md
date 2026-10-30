@@ -68,6 +68,10 @@ Without a program, its feature falls back or says what is missing: `nem` with no
 arguments lists the directory in dired, and a preview opens the file as its plain
 text.
 
+**Images** need no program, but they need a terminal that draws the kitty graphics
+protocol, such as kitty, Ghostty or WezTerm. `M-x image-view` shows a PNG, JPEG or
+GIF as pixels there, and says so and does nothing elsewhere.
+
 <details>
 <summary><b>From source</b></summary>
 

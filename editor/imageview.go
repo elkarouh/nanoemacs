@@ -55,7 +55,7 @@ func (e *Editor) showImage(path string) error {
 	}
 	e.Echo("%s (%dx%d) - any key closes", path, iw, ih)
 	e.Redraw()
-	e.nextKey()
+	e.nextKeyEvent()
 	ui.WriteTTY(e.scr, ui.KittyClear)
 	e.Echo("")
 	e.scr.Sync()
@@ -86,16 +86,16 @@ func (e *Editor) drawImage(path string) (iw, ih int, err error) {
 	return iw, ih, nil
 }
 
-// nextKey waits for a key press and returns it. ok is false when the editor is
-// ending instead, so there is no key to wait for.
-func (e *Editor) nextKey() (key tcell.Key, ok bool) {
+// nextKeyEvent waits for a key press and returns it. ok is false when the
+// editor is ending instead, so there is no key to wait for.
+func (e *Editor) nextKeyEvent() (ev *tcell.EventKey, ok bool) {
 	for {
-		ev := e.nextEvent()
-		if ev == nil {
-			return 0, false
+		next := e.nextEvent()
+		if next == nil {
+			return nil, false
 		}
-		if k, isKey := ev.(*tcell.EventKey); isKey {
-			return k.Key(), true
+		if k, isKey := next.(*tcell.EventKey); isKey {
+			return k, true
 		}
 	}
 }

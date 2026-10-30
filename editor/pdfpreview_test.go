@@ -9,31 +9,52 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// pdfTurn is the page each key goes to. Arrows and Page keys move a page and
-// stay within the PDF; Home and End go to its ends; any other key does not turn.
-func TestPDFTurn(t *testing.T) {
+// The viewer's keys, as the events a terminal sends for them.
+func TestPDFKeysAreEmacsLike(t *testing.T) {
 	tests := []struct {
-		page  int
-		key   tcell.Key
-		want  int
-		turns bool
+		name string
+		ev   *tcell.EventKey
+		want pdfAct
 	}{
-		{1, tcell.KeyRight, 2, true},
-		{2, tcell.KeyDown, 3, true},
-		{5, tcell.KeyPgDn, 5, true}, // stays on the last page
-		{3, tcell.KeyPgDn, 4, true},
-		{2, tcell.KeyLeft, 1, true},
-		{1, tcell.KeyUp, 1, true}, // stays on the first page
-		{3, tcell.KeyPgUp, 2, true},
-		{2, tcell.KeyHome, 1, true},
-		{2, tcell.KeyEnd, 5, true},
-		{2, tcell.KeyEscape, 2, false}, // closes the viewer
-		{2, tcell.KeyRune, 2, false},
+		{"C-n next", tcell.NewEventKey(tcell.KeyCtrlN, 0, tcell.ModCtrl), pdfNext},
+		{"C-v next", tcell.NewEventKey(tcell.KeyCtrlV, 0, tcell.ModCtrl), pdfNext},
+		{"Page Down next", tcell.NewEventKey(tcell.KeyPgDn, 0, tcell.ModNone), pdfNext},
+		{"C-p prev", tcell.NewEventKey(tcell.KeyCtrlP, 0, tcell.ModCtrl), pdfPrev},
+		{"M-v prev", tcell.NewEventKey(tcell.KeyRune, 'v', tcell.ModAlt), pdfPrev},
+		{"M-< first", tcell.NewEventKey(tcell.KeyRune, '<', tcell.ModAlt), pdfFirst},
+		{"M-> last", tcell.NewEventKey(tcell.KeyRune, '>', tcell.ModAlt), pdfLast},
+		{"M-g goes to a page", tcell.NewEventKey(tcell.KeyRune, 'g', tcell.ModAlt), pdfGoto},
+		{"+ zooms in", tcell.NewEventKey(tcell.KeyRune, '+', tcell.ModNone), pdfZoomIn},
+		{"- zooms out", tcell.NewEventKey(tcell.KeyRune, '-', tcell.ModNone), pdfZoomOut},
+		{"0 fits the width", tcell.NewEventKey(tcell.KeyRune, '0', tcell.ModNone), pdfFit},
+		{"a letter closes", tcell.NewEventKey(tcell.KeyRune, 'q', tcell.ModNone), pdfClose},
+		{"Escape closes", tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone), pdfClose},
 	}
 	for _, tt := range tests {
-		got, turned := pdfTurn(tt.page, 5, tt.key)
-		if got != tt.want || turned != tt.turns {
-			t.Errorf("pdfTurn(%d, 5, %v) = %d, %v; want %d, %v", tt.page, tt.key, got, turned, tt.want, tt.turns)
+		if got := pdfKeyAct(tt.ev); got != tt.want {
+			t.Errorf("%s: act = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+// Moves stay within the PDF's first and last page.
+func TestPDFTurnStaysWithinThePages(t *testing.T) {
+	tests := []struct {
+		page int
+		act  pdfAct
+		want int
+	}{
+		{1, pdfNext, 2},
+		{5, pdfNext, 5},
+		{1, pdfPrev, 1},
+		{3, pdfPrev, 2},
+		{2, pdfFirst, 1},
+		{2, pdfLast, 5},
+		{2, pdfZoomIn, 2}, // not a move
+	}
+	for _, tt := range tests {
+		if got := pdfTurn(tt.page, 5, tt.act); got != tt.want {
+			t.Errorf("pdfTurn(%d, 5, %d) = %d, want %d", tt.page, tt.act, got, tt.want)
 		}
 	}
 }
@@ -49,9 +70,10 @@ func TestPDFPagesReadsPdfinfo(t *testing.T) {
 	}
 }
 
-// renderPDFPage asks pdftoppm for the one page, and returns the PNG it wrote.
-// The fake records its arguments and writes a PNG beside the base name it gets.
-func TestRenderPDFPageAsksForThatPage(t *testing.T) {
+// renderPDFPage asks pdftoppm for the one page, at the size asked for, and
+// returns the PNG it wrote. The fake records its arguments and writes a PNG
+// beside the base name it gets last, as the real one does with -singlefile.
+func TestRenderPDFPageAsksForThatPageAtThatSize(t *testing.T) {
 	dir := t.TempDir()
 	args := filepath.Join(dir, "args")
 	src := filepath.Join(dir, "src.png")
@@ -59,19 +81,25 @@ func TestRenderPDFPageAsksForThatPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeTool(t, "pdftoppm", `echo "$@" > '`+args+`'; for last; do :; done; cp '`+src+`' "$last.png"`)
-	png, err := renderPDFPage("paper.pdf", 4, dir)
+
+	png, err := renderPDFPage("paper.pdf", 4, pdfSize{dpi: 150}, filepath.Join(dir, "p4"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(png, "page-4.png") {
-		t.Errorf("rendered %q, want page-4.png", png)
-	}
-	if data, err := os.ReadFile(png); err != nil || string(data) != "PNG" {
-		t.Fatalf("reading the page: %q, %v", data, err)
+	if !strings.HasSuffix(png, "p4.png") {
+		t.Errorf("rendered %q, want p4.png", png)
 	}
 	got, _ := os.ReadFile(args)
-	if !strings.Contains(string(got), "-f 4 -l 4") {
-		t.Errorf("pdftoppm was given %q, want the one page 4", got)
+	if !strings.Contains(string(got), "-f 4 -l 4") || !strings.Contains(string(got), "-r 150") {
+		t.Errorf("pdftoppm was given %q, want page 4 at 150 dpi", got)
+	}
+
+	if _, err := renderPDFPage("paper.pdf", 4, pdfSize{dpi: 150, fitWidth: 900}, filepath.Join(dir, "f4")); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = os.ReadFile(args)
+	if !strings.Contains(string(got), "-scale-to-x 900 -scale-to-y -1") {
+		t.Errorf("pdftoppm was given %q, want the page scaled to 900 pixels wide", got)
 	}
 }
 

@@ -13,10 +13,87 @@ import (
 )
 
 // A PDF chosen in yazi opens in a viewer that draws one page at a time, each
-// rendered by pdftoppm, over the window. The arrow keys and Page Up and Page
-// Down turn pages, Home and End go to the first and last, and any other key
-// closes the viewer back to yazi. It needs the same terminal as a picture;
+// rendered by pdftoppm, over the window. Its keys follow emacs: C-n, C-f, C-v
+// and Page Down go to the next page, C-p, C-b, M-v and Page Up to the previous,
+// M-< and M-> to the first and last, and M-g goes to a page the number of which
+// is typed. + and - zoom, and 0 fits the page to the window's width. Any other
+// key closes the viewer back to yazi. It needs the same terminal as a picture;
 // elsewhere yazi refuses a PDF as any binary file.
+
+// pdfAct is what a key does in the PDF viewer.
+type pdfAct int
+
+const (
+	pdfClose pdfAct = iota
+	pdfNext
+	pdfPrev
+	pdfFirst
+	pdfLast
+	pdfGoto
+	pdfZoomIn
+	pdfZoomOut
+	pdfFit
+)
+
+// pdfDefaultDPI is the resolution a page is rendered at when it is not fitted
+// to the window's width.
+const pdfDefaultDPI = 150
+
+// pdfKeyAct is what a key press does in the PDF viewer.
+func pdfKeyAct(ev *tcell.EventKey) pdfAct {
+	alt := ev.Modifiers()&tcell.ModAlt != 0
+	if alt {
+		switch ev.Rune() {
+		case 'v':
+			return pdfPrev
+		case '<':
+			return pdfFirst
+		case '>':
+			return pdfLast
+		case 'g':
+			return pdfGoto
+		}
+		return pdfClose
+	}
+	switch ev.Key() {
+	case tcell.KeyRight, tcell.KeyDown, tcell.KeyPgDn, tcell.KeyCtrlN, tcell.KeyCtrlF, tcell.KeyCtrlV:
+		return pdfNext
+	case tcell.KeyLeft, tcell.KeyUp, tcell.KeyPgUp, tcell.KeyCtrlP, tcell.KeyCtrlB:
+		return pdfPrev
+	case tcell.KeyHome:
+		return pdfFirst
+	case tcell.KeyEnd:
+		return pdfLast
+	case tcell.KeyRune:
+		switch ev.Rune() {
+		case ' ':
+			return pdfNext
+		case '+', '=':
+			return pdfZoomIn
+		case '-':
+			return pdfZoomOut
+		case '0':
+			return pdfFit
+		}
+	}
+	return pdfClose
+}
+
+// pdfTurn is the page an action goes to from page, of pages. Moves stay within
+// the first and last page.
+func pdfTurn(page, pages int, act pdfAct) int {
+	switch act {
+	case pdfNext:
+		return min(page+1, pages)
+	case pdfPrev:
+		return max(page-1, 1)
+	case pdfFirst:
+		return 1
+	case pdfLast:
+		return pages
+	}
+	return page
+}
 
 // isPDFFile reports whether path names a PDF.
 func isPDFFile(path string) bool {
@@ -42,8 +119,15 @@ func (e *Editor) showPicture(path string) error {
 	return e.showImage(path)
 }
 
-// browsePDF shows the PDF at path page by page, until a key that does not turn
-// a page closes it.
+// pdfSize is how a page is rendered: at dpi, or, when fitWidth is more than
+// zero, scaled to fitWidth pixels wide.
+type pdfSize struct {
+	dpi      int
+	fitWidth int
+}
+
+// browsePDF shows the PDF at path page by page, until a key that is not a page
+// key closes it.
 func (e *Editor) browsePDF(path string) error {
 	pages, err := pdfPages(path)
 	if err != nil {
@@ -55,45 +139,86 @@ func (e *Editor) browsePDF(path string) error {
 	}
 	defer os.RemoveAll(dir)
 
-	page := 1
+	page, size, seq := 1, pdfSize{dpi: pdfDefaultDPI}, 0
 	for {
-		png, err := renderPDFPage(path, page, dir)
+		seq++
+		png, err := renderPDFPage(path, page, size, filepath.Join(dir, strconv.Itoa(seq)))
 		if err != nil {
 			return err
 		}
 		if _, _, err := e.drawImage(png); err != nil {
 			return err
 		}
-		e.Echo("%s, page %d of %d - arrows and Page keys turn, any other key closes", filepath.Base(path), page, pages)
+		e.Echo("%s, page %d of %d - n p M-< M-> M-g + - 0; any other key closes", filepath.Base(path), page, pages)
 		e.Redraw()
-		key, ok := e.nextKey()
+		ev, ok := e.nextKeyEvent()
 		ui.WriteTTY(e.scr, ui.KittyClear)
-		next, turned := pdfTurn(page, pages, key)
-		if !ok || !turned {
+		if !ok {
 			break
 		}
-		page = next
+		act := pdfKeyAct(ev)
+		switch act {
+		case pdfClose:
+			e.scr.Sync()
+			e.Echo("")
+			return nil
+		case pdfGoto:
+			if n, ok := e.askPage(pages); ok {
+				page = n
+			}
+		case pdfZoomIn:
+			size = pdfSize{dpi: min(size.dpi*5/4+1, 600)}
+		case pdfZoomOut:
+			size = pdfSize{dpi: max(size.dpi*4/5, 30)}
+		case pdfFit:
+			size = e.fitSize()
+		default:
+			page = pdfTurn(page, pages, act)
+		}
 	}
 	e.Echo("")
 	e.scr.Sync()
 	return nil
 }
 
-// pdfTurn is the page a key goes to from page, of pages. Arrows and Page keys
-// turn one page, staying within the first and last, and Home and End go to
-// those. turned is false for a key that does not turn pages.
-func pdfTurn(page, pages int, key tcell.Key) (next int, turned bool) {
-	switch key {
-	case tcell.KeyRight, tcell.KeyDown, tcell.KeyPgDn:
-		return min(page+1, pages), true
-	case tcell.KeyLeft, tcell.KeyUp, tcell.KeyPgUp:
-		return max(page-1, 1), true
-	case tcell.KeyHome:
-		return 1, true
-	case tcell.KeyEnd:
-		return pages, true
+// fitSize is a page scaled to the window's width, or at the default resolution
+// where the terminal does not report its cell size.
+func (e *Editor) fitSize() pdfSize {
+	w, _ := e.scr.Size()
+	if cw, _ := ui.CellPixels(e.scr); cw > 0 {
+		return pdfSize{dpi: pdfDefaultDPI, fitWidth: w * cw}
 	}
-	return page, false
+	return pdfSize{dpi: pdfDefaultDPI}
+}
+
+// askPage reads the number of a page, typed and ended with Enter, and reports
+// it when it is one of the pages. Escape or C-g gives up.
+func (e *Editor) askPage(pages int) (int, bool) {
+	num := ""
+	for {
+		e.Echo("Go to page (1-%d): %s", pages, num)
+		ev, ok := e.nextKeyEvent()
+		if !ok {
+			return 0, false
+		}
+		switch {
+		case ev.Key() == tcell.KeyEnter:
+			n, err := strconv.Atoi(num)
+			if err != nil || n < 1 || n > pages {
+				e.Echo("no page %q in a PDF of %d pages", num, pages)
+				return 0, false
+			}
+			return n, true
+		case ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlG:
+			return 0, false
+		case ev.Key() == tcell.KeyBackspace || ev.Key() == tcell.KeyBackspace2:
+			if num != "" {
+				num = num[:len(num)-1]
+			}
+		case ev.Key() == tcell.KeyRune && ev.Rune() >= '0' && ev.Rune() <= '9':
+			num += string(ev.Rune())
+		}
+	}
 }
 
 // pdfPages reports how many pages the PDF at path has, as pdfinfo says.
@@ -116,17 +241,21 @@ func pdfPages(path string) (int, error) {
 	return 0, fmt.Errorf("pdfinfo did not say how many pages %s has", filepath.Base(path))
 }
 
-// renderPDFPage renders page of the PDF at path to a PNG in dir, with pdftoppm,
-// and returns the PNG's path.
-func renderPDFPage(path string, page int, dir string) (string, error) {
+// renderPDFPage renders page of the PDF at path, at size, to a PNG named by
+// base, with pdftoppm, and returns the PNG's path.
+func renderPDFPage(path string, page int, size pdfSize, base string) (string, error) {
 	pdftoppm, err := exec.LookPath("pdftoppm")
 	if err != nil {
 		return "", fmt.Errorf("the PDF view needs pdftoppm, from poppler, which is not on the PATH")
 	}
 	n := strconv.Itoa(page)
-	base := filepath.Join(dir, "page-"+n)
-	out, err := exec.Command(pdftoppm, "-png", "-singlefile", "-f", n, "-l", n,
-		"-r", "150", path, base).CombinedOutput()
+	args := []string{"-png", "-singlefile", "-f", n, "-l", n}
+	if size.fitWidth > 0 {
+		args = append(args, "-scale-to-x", strconv.Itoa(size.fitWidth), "-scale-to-y", "-1")
+	} else {
+		args = append(args, "-r", strconv.Itoa(size.dpi))
+	}
+	out, err := exec.Command(pdftoppm, append(args, path, base)...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("pdftoppm: %s", vcFirstLine(string(out), err))
 	}

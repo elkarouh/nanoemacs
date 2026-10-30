@@ -71,8 +71,10 @@ dired, and a preview shows the file as plain text.
 **Images and PDFs** show as pixels, in a terminal that draws the kitty graphics
 protocol: kitty, Ghostty or WezTerm. There, `M-x image-view` shows a PNG, JPEG or
 GIF, and a picture chosen in yazi shows over the window. A PDF chosen in yazi
-opens one page at a time: the arrow keys and Page Up and Page Down turn pages,
-Home and End go to the first and last, and any other key goes back to yazi.
+opens one page at a time, with emacs keys: `C-n` and `C-p` (or the arrows and
+Page keys) turn pages, `M-<` and `M->` go to the first and last, and `M-g` goes to
+a page whose number you type. `+` and `-` zoom, and `0` fits the page to the
+window's width. Any other key goes back to yazi.
 Elsewhere `M-x image-view` says so and does nothing, and yazi refuses a PDF as it
 refuses any binary file.
 

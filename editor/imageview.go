@@ -34,7 +34,17 @@ func isImageFile(path string) bool {
 
 // canShowImages reports whether opening an image file shows it, rather than
 // refusing it as the binary file it is.
-func (e *Editor) canShowImages() bool { return e.scr != nil && ui.KittySupported() }
+func (e *Editor) canShowImages() bool { return e.scr != nil && ui.ImagesSupported() }
+
+// clearImage removes the picture drawn last. Kitty graphics are deleted by a
+// command; sixel has none, so the cells under it are painted again.
+func (e *Editor) clearImage() {
+	if ui.UseSixel() {
+		e.scr.Sync()
+		return
+	}
+	ui.WriteTTY(e.scr, ui.KittyClear)
+}
 
 func (e *Editor) imageView() error {
 	if !e.canShowImages() {
@@ -56,7 +66,7 @@ func (e *Editor) showImage(path string) error {
 	e.Echo("%s (%dx%d) - any key closes", path, iw, ih)
 	e.Redraw()
 	e.nextKeyEvent()
-	ui.WriteTTY(e.scr, ui.KittyClear)
+	e.clearImage()
 	e.Echo("")
 	e.scr.Sync()
 	return nil
@@ -76,11 +86,24 @@ func (e *Editor) drawImage(path string) (iw, ih int, err error) {
 	e.Redraw()
 	w, h := e.scr.Size()
 	cw, ch := ui.CellPixels(e.scr)
+	sixel := ui.UseSixel()
+	if sixel {
+		cw, ch = ui.SixelCell(cw, ch)
+	}
 	cols, rows := ui.FitImage(iw, ih, w, h-1, cw, ch)
 	if cols == 0 {
 		return 0, 0, fmt.Errorf("no room for the image")
 	}
-	if !ui.WriteTTY(e.scr, ui.KittyDraw(png, (w-cols)/2, (h-1-rows)/2, cols, rows)) {
+	x, y := (w-cols)/2, (h-1-rows)/2
+	seq := ""
+	if sixel {
+		if seq, err = ui.SixelDraw(png, x, y, cols, rows, cw, ch); err != nil {
+			return 0, 0, err
+		}
+	} else {
+		seq = ui.KittyDraw(png, x, y, cols, rows)
+	}
+	if !ui.WriteTTY(e.scr, seq) {
 		return 0, 0, fmt.Errorf("could not reach the terminal")
 	}
 	return iw, ih, nil

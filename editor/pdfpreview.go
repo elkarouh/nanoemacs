@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Borderliner/nem/ui"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -113,7 +112,7 @@ func (e *Editor) browsePDF(path string) error {
 	defer os.RemoveAll(dir)
 	// The picture stays up while keys are read, and is cleared once the viewer
 	// closes.
-	defer ui.WriteTTY(e.scr, ui.KittyClear)
+	defer e.clearImage()
 
 	page := 1
 	for {
@@ -122,7 +121,7 @@ func (e *Editor) browsePDF(path string) error {
 			return err
 		}
 		// One picture at a time: the last one is cleared before the next is drawn.
-		ui.WriteTTY(e.scr, ui.KittyClear)
+		e.clearImage()
 		if _, _, err := e.drawImage(png); err != nil {
 			return err
 		}

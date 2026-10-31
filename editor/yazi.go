@@ -245,7 +245,7 @@ func (e *Editor) yaziAt(start string) error {
 			b, err = e.Dired(p)
 		} else if isArchive(p) {
 			b, err = e.archiveList(p)
-		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText {
+		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText && !isEPUBFile(p) {
 			refused = append(refused, filepath.Base(p))
 			continue
 		} else {

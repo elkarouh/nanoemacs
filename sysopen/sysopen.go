@@ -58,6 +58,10 @@ var binaryExts = map[string]bool{
 	"sqlite": true, "sqlite3": true, "db": true,
 }
 
+// officeExts are the word processor and spreadsheet formats that, on Linux,
+// are opened with soffice when it is installed.
+var officeExts = map[string]bool{"docx": true, "xlsx": true}
+
 // Ext returns path's extension, lower-cased and without the dot: the key the
 // editor remembers a choice under. A file with none gives "".
 func Ext(path string) string {
@@ -154,6 +158,13 @@ func (v env) opener(path string) ([]string, error) {
 			return []string{"wslview", path}, nil
 		}
 		return nil, fmt.Errorf("%w: no graphical display", ErrUnavailable)
+	}
+	// On a freedesktop system a Word or Excel file goes to LibreOffice's soffice
+	// when it is installed, not to whatever xdg-open would pick.
+	if officeExts[Ext(path)] {
+		if _, err := v.lookPath("soffice"); err == nil {
+			return []string{"soffice", path}, nil
+		}
 	}
 	for _, name := range []string{"xdg-open", "wslview"} {
 		if _, err := v.lookPath(name); err == nil {

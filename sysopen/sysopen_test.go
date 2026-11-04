@@ -100,18 +100,25 @@ func TestOpener(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		env  env
+		file string   // "" means f.pdf
 		want []string // nil means unavailable
 	}{
-		{"macOS", env{"darwin", has(), vars()}, []string{"open", "f.pdf"}},
-		{"Windows", env{"windows", has(), vars()}, []string{"rundll32", "url.dll,FileProtocolHandler", "f.pdf"}},
-		{"X11", env{"linux", has("xdg-open"), vars("DISPLAY", ":0")}, []string{"xdg-open", "f.pdf"}},
-		{"Wayland", env{"freebsd", has("xdg-open"), vars("WAYLAND_DISPLAY", "wayland-0")}, []string{"xdg-open", "f.pdf"}},
-		{"no display", env{"linux", has("xdg-open"), vars()}, nil},
-		{"no xdg-open", env{"linux", has(), vars("DISPLAY", ":0")}, nil},
-		{"WSL", env{"linux", has("wslview"), vars()}, []string{"wslview", "f.pdf"}},
+		{"macOS", env{"darwin", has(), vars()}, "", []string{"open", "f.pdf"}},
+		{"Windows", env{"windows", has(), vars()}, "", []string{"rundll32", "url.dll,FileProtocolHandler", "f.pdf"}},
+		{"X11", env{"linux", has("xdg-open"), vars("DISPLAY", ":0")}, "", []string{"xdg-open", "f.pdf"}},
+		{"Wayland", env{"freebsd", has("xdg-open"), vars("WAYLAND_DISPLAY", "wayland-0")}, "", []string{"xdg-open", "f.pdf"}},
+		{"no display", env{"linux", has("xdg-open"), vars()}, "", nil},
+		{"no xdg-open", env{"linux", has(), vars("DISPLAY", ":0")}, "", nil},
+		{"WSL", env{"linux", has("wslview"), vars()}, "", []string{"wslview", "f.pdf"}},
+		{"X11 office file", env{"linux", has("xdg-open", "soffice"), vars("DISPLAY", ":0")}, "f.docx", []string{"soffice", "f.docx"}},
+		{"X11 office file without soffice", env{"linux", has("xdg-open"), vars("DISPLAY", ":0")}, "f.docx", []string{"xdg-open", "f.docx"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := tc.env.opener("f.pdf")
+			file := tc.file
+			if file == "" {
+				file = "f.pdf"
+			}
+			got, err := tc.env.opener(file)
 			if tc.want == nil {
 				if !errors.Is(err, ErrUnavailable) {
 					t.Errorf("opener = %q, %v; want ErrUnavailable", got, err)

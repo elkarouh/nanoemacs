@@ -347,3 +347,45 @@ func TestYaziOtherWindowWithNothingChosenDoesNotSplit(t *testing.T) {
 		t.Error("the frame was split although nothing was chosen")
 	}
 }
+
+func TestYaziHandsAnOfficeFileToTheSystemApp(t *testing.T) {
+	dir := t.TempDir()
+	var docs []string
+	for _, name := range []string{"report.docx", "sheet.xlsx"} {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte{0x50, 0x4b, 0, 3, 0, 0, 0, 0}, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		docs = append(docs, p)
+	}
+	oldOpen, oldAvail, oldRun := systemOpen, systemAvailable, yaziRun
+	t.Cleanup(func() { systemOpen, systemAvailable, yaziRun = oldOpen, oldAvail, oldRun })
+	var opened []string
+	systemAvailable = func() error { return nil }
+	systemOpen = func(path string, _ func(error)) error {
+		opened = append(opened, path)
+		return nil
+	}
+	runs := 0
+	yaziRun = func(start, chooser string) error {
+		runs++
+		return os.WriteFile(chooser, []byte(docs[0]+"\n"+docs[1]+"\n"), 0o644)
+	}
+	e, _ := newTestEditor(t)
+	before, n := e.active.Buf, len(e.buffers)
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 1 {
+		t.Errorf("yazi ran %d times, want once: it must not come back over an office file", runs)
+	}
+	if len(opened) != 2 || opened[0] != docs[0] || opened[1] != docs[1] {
+		t.Errorf("system app opened %v, want %v", opened, docs)
+	}
+	if e.active.Buf != before || len(e.buffers) != n {
+		t.Error("an office file was opened as a buffer")
+	}
+	if !e.yaziChosen {
+		t.Error("yaziChosen is false: quitting nem would be wrong after a choice")
+	}
+}

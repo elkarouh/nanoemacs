@@ -131,6 +131,14 @@ func yaziChosen(chooser string) []string {
 	return paths
 }
 
+// yaziSystemExts are the office formats that, chosen in yazi, go to the
+// system's app rather than being refused. Choosing one is a request for its
+// viewer, so yazi does not come back over it either.
+var yaziSystemExts = map[string]bool{"docx": true, "xlsx": true}
+
+// isYaziSystemFile reports whether p is one of yaziSystemExts.
+func isYaziSystemFile(p string) bool { return yaziSystemExts[sysopen.Ext(p)] }
+
 // nonTextNames lists the base names of the files among paths that are not text.
 func nonTextNames(paths []string) []string {
 	var out []string
@@ -138,7 +146,7 @@ func nonTextNames(paths []string) []string {
 		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
 			continue
 		}
-		if isText, err := sysopen.IsText(p); err == nil && !isText && !isArchive(p) && !isEPUBFile(p) {
+		if isText, err := sysopen.IsText(p); err == nil && !isText && !isArchive(p) && !isEPUBFile(p) && !isYaziSystemFile(p) {
 			out = append(out, filepath.Base(p))
 		}
 	}
@@ -234,8 +242,9 @@ func (e *Editor) yaziAt(start string) error {
 	}
 	// What yazi chose is opened, the first of it shown. A file that is not
 	// text is refused, whatever the setting for such files: choosing one here
-	// is a mistake, not a request for the system's app. An archive is listed
-	// instead, as its table of contents.
+	// is a mistake, not a request for the system's app. The exceptions are an
+	// archive, listed instead as its table of contents, and a docx or xlsx,
+	// handed to the system's viewer, detached, as yazi's own open would.
 	shown := false
 	var refused []string
 	for _, p := range paths {
@@ -245,6 +254,11 @@ func (e *Editor) yaziAt(start string) error {
 			b, err = e.Dired(p)
 		} else if isArchive(p) {
 			b, err = e.archiveList(p)
+		} else if isYaziSystemFile(p) {
+			if err := e.launch(p); err != nil {
+				return err
+			}
+			continue
 		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText && !isEPUBFile(p) {
 			refused = append(refused, filepath.Base(p))
 			continue

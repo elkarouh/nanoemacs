@@ -217,3 +217,24 @@ func Open(path string, failed func(error)) error {
 	}()
 	return nil
 }
+
+// Run starts the program at path itself, with no opener in between, and
+// returns without waiting for it. The program is detached and its output goes
+// nowhere, as Open detaches an app; failed is called, from another goroutine,
+// if it dies within reportWindow of starting.
+func Run(path string, failed func(error)) error {
+	cmd := exec.Command(path)
+	detach(cmd)
+	start := time.Now()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() {
+		err := cmd.Wait()
+		if err == nil || failed == nil || time.Since(start) > reportWindow {
+			return
+		}
+		failed(fmt.Errorf("%s did not run (%w)", filepath.Base(path), err))
+	}()
+	return nil
+}

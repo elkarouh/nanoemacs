@@ -153,6 +153,16 @@ func nonTextNames(paths []string) []string {
 	return out
 }
 
+// anyRunnable reports whether one of paths is a program.
+func anyRunnable(paths []string) bool {
+	for _, p := range paths {
+		if isRunnable(p) {
+			return true
+		}
+	}
+	return false
+}
+
 // yaziAt runs yazi on start and opens what it chose.
 func (e *Editor) yaziAt(start string) error {
 	e.yaziChosen = false
@@ -204,7 +214,9 @@ func (e *Editor) yaziAt(start string) error {
 			continue
 		}
 		binaries := nonTextNames(paths)
-		if len(paths) == 0 || len(binaries) != len(paths) {
+		// A program is not refused here: it goes to the question below, once
+		// yazi is gone, so the user can choose to run it.
+		if len(paths) == 0 || len(binaries) != len(paths) || anyRunnable(paths) {
 			break
 		}
 		fmt.Fprintf(os.Stderr, "\nnem: not a text file: %s\n", strings.Join(binaries, ", "))
@@ -260,6 +272,15 @@ func (e *Editor) yaziAt(start string) error {
 			}
 			continue
 		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText && !isEPUBFile(p) {
+			if isRunnable(p) {
+				ran, err := e.offerRun(p)
+				if err != nil {
+					return err
+				}
+				if ran {
+					continue
+				}
+			}
 			refused = append(refused, filepath.Base(p))
 			continue
 		} else {

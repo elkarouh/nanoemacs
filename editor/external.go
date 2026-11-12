@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/Borderliner/nem/command"
@@ -37,6 +38,7 @@ type externalState struct {
 	// open and available are sysopen's, replaced in tests so a test run never
 	// starts a real viewer.
 	open      func(path string, failed func(error)) error
+	run       func(path string, failed func(error)) error
 	available func() error
 }
 
@@ -44,6 +46,7 @@ type externalState struct {
 // the test binary can replace them for every editor it builds; see TestMain.
 var (
 	systemOpen      = sysopen.Open
+	systemRun       = sysopen.Run
 	systemAvailable = sysopen.Available
 )
 
@@ -51,6 +54,7 @@ func newExternalState() externalState {
 	return externalState{
 		remembered: map[string]binaryMode{},
 		open:       systemOpen,
+		run:        systemRun,
 		available:  systemAvailable,
 	}
 }
@@ -138,20 +142,55 @@ func (e *Editor) openElsewhere(abs string) (bool, error) {
 
 // launch hands path to the system's app and says so.
 func (e *Editor) launch(path string) error {
-	// The failure callback runs on the opener's goroutine, so it only posts an
-	// event; the loop turns that into a message. scr is captured here rather
-	// than read from e over there.
-	scr := e.scr
-	failed := func(err error) {
-		if scr != nil {
-			_ = scr.PostEvent(tcell.NewEventInterrupt(openFailure{err}))
-		}
-	}
-	if err := e.ext.open(path, failed); err != nil {
+	if err := e.ext.open(path, e.openFailure()); err != nil {
 		return err
 	}
 	e.Echo("Opened %s with the system app", filepath.Base(path))
 	return nil
+}
+
+// openFailure is the callback for a launch that fails soon after it starts.
+// It runs on the launched program's goroutine, so it only posts an event; the
+// loop turns that into a message. scr is captured here rather than read from e
+// over there.
+func (e *Editor) openFailure() func(error) {
+	scr := e.scr
+	return func(err error) {
+		if scr != nil {
+			_ = scr.PostEvent(tcell.NewEventInterrupt(openFailure{err}))
+		}
+	}
+}
+
+// isRunnable reports whether path is a regular file with an execute bit set:
+// a program, as opposed to a document that merely is not text.
+func isRunnable(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0
+}
+
+// offerRun asks whether the program at path should be run directly, and runs
+// it if so. It is a plain subprocess, detached, not a trip through the system's
+// opener. It reports whether the program was started.
+func (e *Editor) offerRun(path string) (bool, error) {
+	name := filepath.Base(path)
+	c, err := e.ReadChar(fmt.Sprintf("%s is a program. r: run it, n: leave it ", name), []rune{'r', 'n'})
+	if err != nil {
+		return false, err
+	}
+	e.Echo("")
+	if c != 'r' {
+		return false, nil
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false, err
+	}
+	if err := e.ext.run(abs, e.openFailure()); err != nil {
+		return false, err
+	}
+	e.Echo("Running %s", name)
+	return true, nil
 }
 
 // registerExternalCommands adds the commands that open files outside nem.

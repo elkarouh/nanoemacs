@@ -171,31 +171,30 @@ func isRunnable(path string) bool {
 
 // offerRun asks whether the program at path should be run, and runs it if so.
 // The program runs in the foreground: nem's screen is suspended while it runs,
-// and resumed when it exits, so the user comes back to the same place in nem.
-// It reports whether the program was run.
-func (e *Editor) offerRun(path string) (bool, error) {
+// and resumed when it exits.
+func (e *Editor) offerRun(path string) error {
 	name := filepath.Base(path)
 	c, err := e.ReadChar(fmt.Sprintf("%s is a program. r: run it, n: leave it ", name), []rune{'r', 'n'})
 	if err != nil {
-		return false, err
+		return err
 	}
 	e.Echo("")
 	if c != 'r' {
-		return false, nil
+		return nil
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if e.scr != nil {
 		if err := e.scr.Suspend(); err != nil {
-			return false, err
+			return err
 		}
 	}
 	runErr := e.ext.runWait(abs)
 	if e.scr != nil {
 		if err := e.scr.Resume(); err != nil {
-			return false, err
+			return err
 		}
 		e.scr.Sync()
 	}
@@ -204,7 +203,7 @@ func (e *Editor) offerRun(path string) (bool, error) {
 	} else {
 		e.Echo("Ran %s", name)
 	}
-	return true, nil
+	return nil
 }
 
 // registerExternalCommands adds the commands that open files outside nem.

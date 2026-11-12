@@ -413,6 +413,9 @@ func TestYaziOffersToRunAProgram(t *testing.T) {
 	runs := 0
 	yaziRun = func(start, chooser string) error {
 		runs++
+		if runs > 1 {
+			return os.WriteFile(chooser, nil, 0o644) // back in yazi, nothing chosen
+		}
 		return os.WriteFile(chooser, []byte(prog+"\n"), 0o644)
 	}
 	e, _ := newTestEditor(t)
@@ -420,15 +423,15 @@ func TestYaziOffersToRunAProgram(t *testing.T) {
 	if err := e.yazi(); err != nil {
 		t.Fatalf("yazi: %v", err)
 	}
-	if runs != 1 {
-		t.Errorf("yazi ran %d times, want once", runs)
+	if runs != 2 {
+		t.Errorf("yazi ran %d times, want twice: once to choose, once to come back to after the program", runs)
 	}
 	if len(ran) != 1 || ran[0] != prog {
 		t.Errorf("ran %v, want [%s]", ran, prog)
 	}
 }
 
-// Answering n to the offer leaves the program alone and says it was not text.
+// Answering n to the offer leaves the program alone and brings yazi back.
 func TestYaziRefusesAProgramWhenAskedNo(t *testing.T) {
 	dir := t.TempDir()
 	prog := filepath.Join(dir, "gui-app")
@@ -441,13 +444,20 @@ func TestYaziRefusesAProgramWhenAskedNo(t *testing.T) {
 		t.Errorf("%s was run after n", path)
 		return nil
 	}
+	runs := 0
 	yaziRun = func(start, chooser string) error {
+		runs++
+		if runs > 1 {
+			return os.WriteFile(chooser, nil, 0o644)
+		}
 		return os.WriteFile(chooser, []byte(prog+"\n"), 0o644)
 	}
 	e, _ := newTestEditor(t)
 	feedAnswer(t, e, "n")
-	err := e.yazi()
-	if err == nil || !strings.Contains(err.Error(), "not a text file") {
-		t.Errorf("yazi error = %v, want a not-a-text-file refusal", err)
+	if err := e.yazi(); err != nil {
+		t.Fatalf("yazi: %v", err)
+	}
+	if runs != 2 {
+		t.Errorf("yazi ran %d times, want twice: back in yazi after the answer n", runs)
 	}
 }

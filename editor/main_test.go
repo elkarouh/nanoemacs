@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 	defaultClipboardReader = noSystemClipboard
 	systemOpen = func(string, func(error)) error { return sysopen.ErrUnavailable }
 	systemAvailable = func() error { return sysopen.ErrUnavailable }
-	systemRun = func(string, func(error)) error { return errors.New("no programs are run in tests") }
+	systemRunWait = func(string) error { return errors.New("no programs are run in tests") }
 	// Likewise emacsclient: a test must never talk to the developer's Emacs.
 	emacsclientRun = func(...string) error { return errors.New("emacsclient is not available in tests") }
 	// And yazi, which would take over the test's terminal.

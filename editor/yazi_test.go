@@ -391,28 +391,31 @@ func TestYaziHandsAnOfficeFileToTheSystemApp(t *testing.T) {
 }
 
 // A program chosen in yazi is offered for running, not refused, and running it
-// is a plain subprocess: the system's opener is never asked.
+// is a plain subprocess in the foreground: the system's opener is never asked.
 func TestYaziOffersToRunAProgram(t *testing.T) {
 	dir := t.TempDir()
 	prog := filepath.Join(dir, "gui-app")
 	if err := os.WriteFile(prog, []byte{0x7f, 'E', 'L', 'F', 0, 0, 0, 0}, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	oldOpen, oldAvail, oldRun, oldYazi := systemOpen, systemAvailable, systemRun, yaziRun
-	t.Cleanup(func() { systemOpen, systemAvailable, systemRun, yaziRun = oldOpen, oldAvail, oldRun, oldYazi })
+	oldOpen, oldAvail, oldRun, oldYazi := systemOpen, systemAvailable, systemRunWait, yaziRun
+	t.Cleanup(func() { systemOpen, systemAvailable, systemRunWait, yaziRun = oldOpen, oldAvail, oldRun, oldYazi })
 	systemAvailable = func() error { return nil }
 	systemOpen = func(path string, _ func(error)) error {
 		t.Errorf("the system opener was asked for %s; a program must be run directly", path)
 		return nil
 	}
 	var ran []string
-	systemRun = func(path string, _ func(error)) error {
+	systemRunWait = func(path string) error {
 		ran = append(ran, path)
 		return nil
 	}
 	runs := 0
 	yaziRun = func(start, chooser string) error {
 		runs++
+		if runs > 1 {
+			return os.WriteFile(chooser, nil, 0o644) // back in yazi, nothing chosen
+		}
 		return os.WriteFile(chooser, []byte(prog+"\n"), 0o644)
 	}
 	e, _ := newTestEditor(t)
@@ -420,34 +423,41 @@ func TestYaziOffersToRunAProgram(t *testing.T) {
 	if err := e.yazi(); err != nil {
 		t.Fatalf("yazi: %v", err)
 	}
-	if runs != 1 {
-		t.Errorf("yazi ran %d times, want once", runs)
+	if runs != 2 {
+		t.Errorf("yazi ran %d times, want twice: once to choose, once to come back to after the program", runs)
 	}
 	if len(ran) != 1 || ran[0] != prog {
 		t.Errorf("ran %v, want [%s]", ran, prog)
 	}
 }
 
-// Answering n to the offer leaves the program alone and says it was not text.
+// Answering n to the offer leaves the program alone and brings yazi back.
 func TestYaziRefusesAProgramWhenAskedNo(t *testing.T) {
 	dir := t.TempDir()
 	prog := filepath.Join(dir, "gui-app")
 	if err := os.WriteFile(prog, []byte{0x7f, 'E', 'L', 'F', 0, 0, 0, 0}, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	oldRun, oldYazi := systemRun, yaziRun
-	t.Cleanup(func() { systemRun, yaziRun = oldRun, oldYazi })
-	systemRun = func(path string, _ func(error)) error {
+	oldRun, oldYazi := systemRunWait, yaziRun
+	t.Cleanup(func() { systemRunWait, yaziRun = oldRun, oldYazi })
+	systemRunWait = func(path string) error {
 		t.Errorf("%s was run after n", path)
 		return nil
 	}
+	runs := 0
 	yaziRun = func(start, chooser string) error {
+		runs++
+		if runs > 1 {
+			return os.WriteFile(chooser, nil, 0o644)
+		}
 		return os.WriteFile(chooser, []byte(prog+"\n"), 0o644)
 	}
 	e, _ := newTestEditor(t)
 	feedAnswer(t, e, "n")
-	err := e.yazi()
-	if err == nil || !strings.Contains(err.Error(), "not a text file") {
-		t.Errorf("yazi error = %v, want a not-a-text-file refusal", err)
+	if err := e.yazi(); err != nil {
+		t.Fatalf("yazi: %v", err)
+	}
+	if runs != 2 {
+		t.Errorf("yazi ran %d times, want twice: back in yazi after the answer n", runs)
 	}
 }

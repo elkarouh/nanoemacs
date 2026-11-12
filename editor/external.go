@@ -38,7 +38,7 @@ type externalState struct {
 	// open and available are sysopen's, replaced in tests so a test run never
 	// starts a real viewer.
 	open      func(path string, failed func(error)) error
-	run       func(path string, failed func(error)) error
+	runWait   func(path string) error
 	available func() error
 }
 
@@ -46,7 +46,7 @@ type externalState struct {
 // the test binary can replace them for every editor it builds; see TestMain.
 var (
 	systemOpen      = sysopen.Open
-	systemRun       = sysopen.Run
+	systemRunWait   = sysopen.RunWait
 	systemAvailable = sysopen.Available
 )
 
@@ -54,7 +54,7 @@ func newExternalState() externalState {
 	return externalState{
 		remembered: map[string]binaryMode{},
 		open:       systemOpen,
-		run:        systemRun,
+		runWait:    systemRunWait,
 		available:  systemAvailable,
 	}
 }
@@ -169,28 +169,41 @@ func isRunnable(path string) bool {
 	return err == nil && fi.Mode().IsRegular() && fi.Mode()&0o111 != 0
 }
 
-// offerRun asks whether the program at path should be run directly, and runs
-// it if so. It is a plain subprocess, detached, not a trip through the system's
-// opener. It reports whether the program was started.
-func (e *Editor) offerRun(path string) (bool, error) {
+// offerRun asks whether the program at path should be run, and runs it if so.
+// The program runs in the foreground: nem's screen is suspended while it runs,
+// and resumed when it exits.
+func (e *Editor) offerRun(path string) error {
 	name := filepath.Base(path)
 	c, err := e.ReadChar(fmt.Sprintf("%s is a program. r: run it, n: leave it ", name), []rune{'r', 'n'})
 	if err != nil {
-		return false, err
+		return err
 	}
 	e.Echo("")
 	if c != 'r' {
-		return false, nil
+		return nil
 	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return false, err
+		return err
 	}
-	if err := e.ext.run(abs, e.openFailure()); err != nil {
-		return false, err
+	if e.scr != nil {
+		if err := e.scr.Suspend(); err != nil {
+			return err
+		}
 	}
-	e.Echo("Running %s", name)
-	return true, nil
+	runErr := e.ext.runWait(abs)
+	if e.scr != nil {
+		if err := e.scr.Resume(); err != nil {
+			return err
+		}
+		e.scr.Sync()
+	}
+	if runErr != nil {
+		e.Echo("%s stopped with an error: %v", name, runErr)
+	} else {
+		e.Echo("Ran %s", name)
+	}
+	return nil
 }
 
 // registerExternalCommands adds the commands that open files outside nem.

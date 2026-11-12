@@ -273,13 +273,19 @@ func (e *Editor) yaziAt(start string) error {
 			continue
 		} else if isText, terr := sysopen.IsText(p); terr == nil && !isText && !isEPUBFile(p) {
 			if isRunnable(p) {
-				ran, err := e.offerRun(p)
-				if err != nil {
+				// The program is offered, run if chosen, and yazi is opened
+				// again where it was left: the user was in yazi, so that is
+				// where they return, whatever the answer.
+				if err := e.offerRun(p); err != nil {
 					return err
 				}
-				if ran {
-					continue
+				back := start
+				if d, err := os.ReadFile(yaziCwdFile(chooser)); err == nil {
+					if dir := strings.TrimSpace(string(d)); dir != "" {
+						back = dir
+					}
 				}
+				return e.yaziAt(back)
 			}
 			refused = append(refused, filepath.Base(p))
 			continue

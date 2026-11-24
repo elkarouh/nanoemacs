@@ -149,4 +149,10 @@ func TestCtrlHomeAndEndAreBoundInTheView(t *testing.T) {
 	if got := m.Where("end-of-buffer"); !containsString(got, "C-<end>") {
 		t.Errorf("C-<end> is not bound to end-of-buffer in the view: %v", got)
 	}
+	if got := m.Where("beginning-of-buffer"); !containsString(got, "<home>") {
+		t.Errorf("<home> is not bound to beginning-of-buffer in the view: %v", got)
+	}
+	if got := m.Where("end-of-buffer"); !containsString(got, "<end>") {
+		t.Errorf("<end> is not bound to end-of-buffer in the view: %v", got)
+	}
 }

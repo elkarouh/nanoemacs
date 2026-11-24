@@ -36,6 +36,8 @@ var viewBindings = []struct{ Spec, Command string }{
 	{"e", "view-edit"},
 	{"C-<home>", "beginning-of-buffer"},
 	{"C-<end>", "end-of-buffer"},
+	{"<home>", "beginning-of-buffer"},
+	{"<end>", "end-of-buffer"},
 }
 
 // newViewKeymap builds the view keymap from keypadBindings and viewBindings.

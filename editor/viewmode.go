@@ -32,6 +32,8 @@ var keypadBindings = []struct{ Spec, Command string }{
 // keypad's. Every other key falls through to the global map, as in a preview.
 var viewBindings = []struct{ Spec, Command string }{
 	{"e", "view-edit"},
+	{"C-<home>", "beginning-of-buffer"},
+	{"C-<end>", "end-of-buffer"},
 }
 
 // newViewKeymap builds the view keymap from keypadBindings and viewBindings.

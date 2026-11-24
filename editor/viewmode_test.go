@@ -72,14 +72,18 @@ func TestOpenFileAlreadyOpenKeepsItsState(t *testing.T) {
 	}
 }
 
-func TestKeypadNineAndSevenAreBoundInTheView(t *testing.T) {
-	// The screen in tests has no height to page by, so this checks the bindings
-	// the way they are read: 9 is PgUp's command, and 7 is Home's.
-	if got := newTestViewKeymap(t).Where("scroll-down-command"); !containsString(got, "9") {
-		t.Errorf("9 is not bound to scroll-down-command: %v", got)
+func TestKeypadKeysAreBoundInTheViewAndThePreview(t *testing.T) {
+	view := newTestViewKeymap(t)
+	preview, err := newPreviewKeymap()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := newTestViewKeymap(t).Where("move-beginning-of-line"); !containsString(got, "7") {
-		t.Errorf("7 is not bound to move-beginning-of-line: %v", got)
+	for _, b := range keypadBindings {
+		for name, m := range map[string]*keymap.Map{"view": view, "preview": preview} {
+			if got := m.Where(b.Command); !containsString(got, b.Spec) {
+				t.Errorf("%s: %s is not bound to %s: %v", name, b.Spec, b.Command, got)
+			}
+		}
 	}
 }
 
@@ -113,4 +117,26 @@ func containsString(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func TestKillingAViewedFileForgetsIt(t *testing.T) {
+	path := yaziFile(t, 1)
+	fakeYazi(t, path)
+	e, _ := newTestEditor(t)
+	if _, err := e.OpenFile(filepath.Join(t.TempDir(), "other.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.yazi(); err != nil {
+		t.Fatal(err)
+	}
+	b := e.active.Buf
+	if !e.viewing[b] {
+		t.Fatal("the yazi file is not in view mode")
+	}
+	if err := e.KillBuffer(b); err != nil {
+		t.Fatal(err)
+	}
+	if e.viewing[b] {
+		t.Error("a killed buffer is still remembered as viewed")
+	}
 }

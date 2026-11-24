@@ -226,7 +226,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `upcase-region` | `C-x C-u` | Convert the region to upper case. |
 | `upcase-word` | `M-u` | Convert the following word to upper case. |
 | `vc-next-action` | `C-x v v` | Save the file, stage it and commit it, with the message typed on the prompt. The commit holds this file alone, as C-x v v does in emacs. |
-| `view-edit` |  | Make this read-only file, opened from yazi, editable. Until then e does this, and the keypad's 9 and 7 read as PgUp and Home. |
+| `view-edit` |  | Make this read-only file, opened from yazi, editable. Until then e does this, and the keypad reads as its navigation keys. |
 | `wdired-abort-changes` | wdired: `C-c C-k` | Throw the edited names away, and return to the listing. |
 | `wdired-beginning-of-line` | wdired: `C-a` `<home>` | Move to the start of the file name, or of the line off an entry. |
 | `wdired-change-to-wdired-mode` | dired: `C-x C-q` | Edit the file names in this listing as text, to rename the files. |

@@ -2,6 +2,7 @@ package editor
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/Borderliner/nem/command"
 	"github.com/Borderliner/nem/keymap"
@@ -10,21 +11,33 @@ import (
 
 // A file that yazi opens is read-only at first, so a key pressed by mistake
 // cannot change it. e makes it editable, and it stays so. Until then the
-// file's keys are the viewer's: the keypad's 9 and 7 read as PgUp and Home,
-// whatever NumLock says, since with NumLock on they type digits.
+// file's keys are the viewer's. The keypad's keys read as their navigation
+// keys whatever NumLock says: with NumLock on they type digits, so they are
+// bound here by their digits as well as by the keys they send with NumLock off.
 
-// viewBindings are a file's keys while it is read-only from yazi. Every other
-// key falls through to the global map, as in a preview.
-var viewBindings = []struct{ Spec, Command string }{
-	{"e", "view-edit"},
+// keypadBindings are the keypad's navigation keys, in a read-only view or a
+// preview. Keypad 5, 0 and . do nothing: they have no navigation key.
+var keypadBindings = []struct{ Spec, Command string }{
+	{"8", "previous-line"},
+	{"2", "next-line"},
+	{"4", "left-char"},
+	{"6", "right-char"},
 	{"9", "scroll-down-command"},
+	{"3", "scroll-up-command"},
 	{"7", "move-beginning-of-line"},
+	{"1", "move-end-of-line"},
 }
 
-// newViewKeymap builds the view keymap from viewBindings.
+// viewBindings are a file's keys while it is read-only from yazi, on top of the
+// keypad's. Every other key falls through to the global map, as in a preview.
+var viewBindings = []struct{ Spec, Command string }{
+	{"e", "view-edit"},
+}
+
+// newViewKeymap builds the view keymap from keypadBindings and viewBindings.
 func newViewKeymap() (*keymap.Map, error) {
 	m := keymap.New()
-	for _, b := range viewBindings {
+	for _, b := range append(slices.Clone(keypadBindings), viewBindings...) {
 		if err := bindSpec(m, b.Spec, b.Command); err != nil {
 			return nil, err
 		}
@@ -36,7 +49,7 @@ func newViewKeymap() (*keymap.Map, error) {
 func registerViewCommands(e *Editor, reg *command.Registry) error {
 	return reg.Register(command.Command{
 		Name:        "view-edit",
-		Doc:         "Make this read-only file, opened from yazi, editable. Until then e does this, and the keypad's 9 and 7 read as PgUp and Home.",
+		Doc:         "Make this read-only file, opened from yazi, editable. Until then e does this, and the keypad reads as its navigation keys.",
 		Interactive: true,
 		Fn:          func(command.Env) error { return e.viewEdit() },
 	})

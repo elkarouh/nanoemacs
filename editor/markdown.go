@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,8 +53,6 @@ type renderer func(src string) ([]byte, error)
 // map, so C-s still searches.
 var previewBindings = []struct{ Spec, Command string }{
 	{"e", "preview-close"},
-	{"9", "scroll-down-command"},
-	{"7", "move-beginning-of-line"},
 	{"SPC", "scroll-up-command"},
 	{"b", "scroll-down-command"},
 	{"<", "beginning-of-buffer"},
@@ -64,7 +63,7 @@ var previewBindings = []struct{ Spec, Command string }{
 // newPreviewKeymap builds the preview keymap from previewBindings.
 func newPreviewKeymap() (*keymap.Map, error) {
 	m := keymap.New()
-	for _, b := range previewBindings {
+	for _, b := range append(slices.Clone(keypadBindings), previewBindings...) {
 		if err := bindSpec(m, b.Spec, b.Command); err != nil {
 			return nil, err
 		}

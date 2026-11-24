@@ -787,6 +787,7 @@ func (e *Editor) KillBuffer(b *text.Buffer) error {
 	delete(e.dired, b)
 	delete(e.grep, b)
 	delete(e.raw, b)
+	delete(e.viewing, b)
 	if st := e.compile[b]; st != nil && st.running {
 		st.proc.kill()
 	}

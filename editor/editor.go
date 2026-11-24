@@ -195,7 +195,11 @@ type Editor struct {
 	// styles holds the colours of piped input, by line; see pipein.go.
 	styles map[*text.Buffer]map[int][]ui.SymbolSpan
 	// previewKeys is a preview's keymap: the viewer's keys. See markdown.go.
-	previewKeys     *keymap.Map
+	previewKeys *keymap.Map
+	// viewKeys is the keymap of a file opened read-only from yazi, and viewing
+	// holds those files until e makes them editable. See viewmode.go.
+	viewKeys        *keymap.Map
+	viewing         map[*text.Buffer]bool
 	shellKeys       *keymap.Map
 	shellPrev       *text.Buffer
 	compileCommands map[string]string
@@ -350,6 +354,10 @@ func New(scr tcell.Screen) (*Editor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("installing preview bindings: %w", err)
 	}
+	vk, err := newViewKeymap()
+	if err != nil {
+		return nil, fmt.Errorf("installing view bindings: %w", err)
+	}
 
 	shk, err := newShellKeymap()
 	if err != nil {
@@ -393,6 +401,8 @@ func New(scr tcell.Screen) (*Editor, error) {
 		pipes:           map[*text.Buffer]*pipeIn{},
 		styles:          map[*text.Buffer]map[int][]ui.SymbolSpan{},
 		previewKeys:     pk,
+		viewKeys:        vk,
+		viewing:         map[*text.Buffer]bool{},
 		shellKeys:       shk,
 		compileCommands: map[string]string{},
 		autoRevert:      true,
@@ -472,6 +482,9 @@ func New(scr tcell.Screen) (*Editor, error) {
 	}
 	if err := registerMarkdownCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering markdown commands: %w", err)
+	}
+	if err := registerViewCommands(e, reg); err != nil {
+		return nil, fmt.Errorf("registering view commands: %w", err)
 	}
 	if err := registerImenuCommands(e, reg); err != nil {
 		return nil, fmt.Errorf("registering imenu commands: %w", err)

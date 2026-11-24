@@ -148,6 +148,9 @@ func (e *Editor) modeKeys(b *text.Buffer) *keymap.Map {
 	if e.compileOf(b) != nil {
 		return e.compileKeys
 	}
+	if e.viewing[b] && b.ReadOnly() {
+		return e.viewKeys
+	}
 	if e.previewOf(b) != nil {
 		return e.previewKeys
 	}

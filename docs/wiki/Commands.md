@@ -97,6 +97,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `grep-previous-line` | grep: `C-p` `<up>` | Move to the previous match, ARG matches back. |
 | `grep-previous-match` | grep: `p` | Move to the previous match, ARG matches back, showing it in the other window. |
 | `grep-revert` | grep: `g` | Search again, for the same thing in the same project or buffer. |
+| `html-preview` | `C-x x h` | Show the buffer rendered as HTML text, in its place, as lynx lays it out. An .html file opens this way; the preview is updated on each save of the buffer; e shows the buffer to edit again. |
 | `image-view` |  | Show the active buffer's file, a PNG, JPEG or GIF, as an image over the window, in terminals that draw kitty graphics (kitty, Ghostty, WezTerm). Any key closes it. |
 | `imenu` | `M-g i` | Go to a definition in this buffer - a function, a type, a heading - by name. |
 | `indent-for-tab-command` | `TAB` | Indent at point, or the region's lines, with the file's tabs or spaces. |
@@ -124,7 +125,6 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `list-buffers` | `C-x C-b` | Display a listing of every live buffer. |
 | `mark-whole-buffer` | `C-x h` | Put point at the start of the buffer and the mark at the end. |
 | `markdown-preview` | `C-x x m` | Show the buffer rendered as Markdown, in its place, as mdcat renders it. The preview is updated on each save of the buffer; e shows the buffer to edit again. |
-| `html-preview` | `C-x x h` | Show the buffer rendered as HTML text, in its place, as lynx lays it out. The preview is updated on each save of the buffer; e shows the buffer to edit again. |
 | `move-beginning-of-line` | `C-a` `<home>` | Move point to the start of the line. |
 | `move-end-of-line` | `C-e` `<end>` | Move point to the end of the line. |
 | `move-lines-down` | `M-<down>` | Move the region's lines, or the current line, one line down. |
@@ -139,7 +139,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `open-in-sublime` | `S-<f5>` | Open this buffer's file in Sublime Text, at point's line. A listing opens its directory. Needs the subl command. |
 | `open-line` | `C-o` | Insert a newline after point, leaving point in place. |
 | `other-window` | `C-x o` | Select another window, ARG windows forward. |
-| `preview-close` |  | Close the Markdown preview and show the buffer it renders in its place. |
+| `preview-close` |  | Close the preview and show the buffer it renders in its place. |
 | `previous-buffer` | `M-,` `C-x <left>` | Show the previous buffer in the tab strip in the current window. |
 | `previous-error` | `M-g p` `M-g M-p` | Go to the previous match of the last search, or error of the last compilation, ARG back. |
 | `previous-line` | `C-p` `<up>` | Move point up one line, keeping the goal column. |
@@ -226,6 +226,7 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `upcase-region` | `C-x C-u` | Convert the region to upper case. |
 | `upcase-word` | `M-u` | Convert the following word to upper case. |
 | `vc-next-action` | `C-x v v` | Save the file, stage it and commit it, with the message typed on the prompt. The commit holds this file alone, as C-x v v does in emacs. |
+| `view-edit` |  | Make this read-only file, opened from yazi, editable. Until then e does this, and the keypad's 9 and 7 read as PgUp and Home. |
 | `wdired-abort-changes` | wdired: `C-c C-k` | Throw the edited names away, and return to the listing. |
 | `wdired-beginning-of-line` | wdired: `C-a` `<home>` | Move to the start of the file name, or of the line off an entry. |
 | `wdired-change-to-wdired-mode` | dired: `C-x C-q` | Edit the file names in this listing as text, to rename the files. |
@@ -245,4 +246,4 @@ A key in a mode - `dired: f` - works only in that mode's buffers; see [Keybindin
 | `yazi-other-window` | `C-x y` | Run the yazi file manager, then open what it chose in the other window, splitting the frame if there is only one. Needs yazi on the PATH. |
 | `zap-to-char` | `M-z` | Kill up to and including the next occurrence of a character, ARG times. |
 
-234 commands in all.
+236 commands in all.

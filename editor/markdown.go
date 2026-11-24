@@ -52,6 +52,8 @@ type renderer func(src string) ([]byte, error)
 // map, so C-s still searches.
 var previewBindings = []struct{ Spec, Command string }{
 	{"e", "preview-close"},
+	{"9", "scroll-down-command"},
+	{"7", "move-beginning-of-line"},
 	{"SPC", "scroll-up-command"},
 	{"b", "scroll-down-command"},
 	{"<", "beginning-of-buffer"},

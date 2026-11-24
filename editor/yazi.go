@@ -290,7 +290,13 @@ func (e *Editor) yaziAt(start string) error {
 			refused = append(refused, filepath.Base(p))
 			continue
 		} else {
+			// A file not open yet is read-only until e makes it editable; one
+			// already open keeps the state it is in.
+			fresh := !e.hasFileBuffer(p)
 			b, err = e.OpenFile(p)
+			if err == nil && fresh && !b.ReadOnly() {
+				e.viewOpened(b)
+			}
 		}
 		if err != nil {
 			return err

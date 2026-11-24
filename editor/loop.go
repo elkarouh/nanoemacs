@@ -200,6 +200,7 @@ func (e *Editor) handleEvent(ev tcell.Event) {
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
 		k := DecodeKey(ev, e.keys.TreatCtrlHAsBackspace)
+		logKeyEvent(ev, k) // TEMPORARY
 		if k == (keymap.Key{}) {
 			return // nothing could name this key; ignore it
 		}

@@ -87,7 +87,7 @@ func TestKeypadKeysAreBoundInTheViewAndThePreview(t *testing.T) {
 	}
 }
 
-func TestSevenGoesHomeInTheView(t *testing.T) {
+func TestSevenGoesToTheStartInTheView(t *testing.T) {
 	path := yaziFile(t, 3)
 	fakeYazi(t, path)
 	e, _ := newTestEditor(t)
@@ -95,7 +95,7 @@ func TestSevenGoesHomeInTheView(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.Buf().String()
-	press(t, e, "C-e", "7")
+	press(t, e, "C-n", "C-n", "C-e", "7")
 	wantPt(t, e, 0, 0)
 	wantText(t, e, before)
 }
@@ -148,15 +148,5 @@ func TestCtrlHomeAndEndAreBoundInTheView(t *testing.T) {
 	}
 	if got := m.Where("end-of-buffer"); !containsString(got, "C-<end>") {
 		t.Errorf("C-<end> is not bound to end-of-buffer in the view: %v", got)
-	}
-}
-
-func TestKeypadCtrlHomeAndEndAreBoundInTheView(t *testing.T) {
-	m := newTestViewKeymap(t)
-	if got := m.Where("beginning-of-buffer"); !containsString(got, "C-7") {
-		t.Errorf("C-7 is not bound to beginning-of-buffer in the view: %v", got)
-	}
-	if got := m.Where("end-of-buffer"); !containsString(got, "C-1") {
-		t.Errorf("C-1 is not bound to end-of-buffer in the view: %v", got)
 	}
 }

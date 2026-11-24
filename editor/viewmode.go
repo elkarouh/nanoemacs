@@ -16,7 +16,9 @@ import (
 // bound here by their digits as well as by the keys they send with NumLock off.
 
 // keypadBindings are the keypad's navigation keys, in a read-only view or a
-// preview. Keypad 5, 0 and . do nothing: they have no navigation key.
+// preview. Keypad 7 and 1 go to the start and end of the buffer, as Ctrl-Home
+// and Ctrl-End do, since with NumLock on Ghostty sends them as plain digits.
+// Keypad 5, 0 and . do nothing: they have no navigation key.
 var keypadBindings = []struct{ Spec, Command string }{
 	{"8", "previous-line"},
 	{"2", "next-line"},
@@ -24,8 +26,8 @@ var keypadBindings = []struct{ Spec, Command string }{
 	{"6", "right-char"},
 	{"9", "scroll-down-command"},
 	{"3", "scroll-up-command"},
-	{"7", "move-beginning-of-line"},
-	{"1", "move-end-of-line"},
+	{"7", "beginning-of-buffer"},
+	{"1", "end-of-buffer"},
 }
 
 // viewBindings are a file's keys while it is read-only from yazi, on top of the
@@ -34,9 +36,6 @@ var viewBindings = []struct{ Spec, Command string }{
 	{"e", "view-edit"},
 	{"C-<home>", "beginning-of-buffer"},
 	{"C-<end>", "end-of-buffer"},
-	// Keypad Home and End with NumLock on send Ctrl plus a digit.
-	{"C-7", "beginning-of-buffer"},
-	{"C-1", "end-of-buffer"},
 }
 
 // newViewKeymap builds the view keymap from keypadBindings and viewBindings.

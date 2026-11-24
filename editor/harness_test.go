@@ -162,6 +162,9 @@ func injection(t *testing.T, k keymap.Key) (tcell.Key, rune, tcell.ModMask) {
 		if k.Shift {
 			mod |= tcell.ModShift
 		}
+		if k.Ctrl {
+			mod |= tcell.ModCtrl
+		}
 		return tk, 0, mod
 	}
 	if k.Ctrl {

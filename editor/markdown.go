@@ -55,6 +55,8 @@ var previewBindings = []struct{ Spec, Command string }{
 	{"e", "preview-close"},
 	{"C-<home>", "beginning-of-buffer"},
 	{"C-<end>", "end-of-buffer"},
+	{"C-7", "beginning-of-buffer"},
+	{"C-1", "end-of-buffer"},
 	{"SPC", "scroll-up-command"},
 	{"b", "scroll-down-command"},
 	{"<", "beginning-of-buffer"},

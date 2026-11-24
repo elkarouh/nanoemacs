@@ -34,6 +34,9 @@ var viewBindings = []struct{ Spec, Command string }{
 	{"e", "view-edit"},
 	{"C-<home>", "beginning-of-buffer"},
 	{"C-<end>", "end-of-buffer"},
+	// Keypad Home and End with NumLock on send Ctrl plus a digit.
+	{"C-7", "beginning-of-buffer"},
+	{"C-1", "end-of-buffer"},
 }
 
 // newViewKeymap builds the view keymap from keypadBindings and viewBindings.
